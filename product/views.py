@@ -33,138 +33,33 @@ class HomepageView(ListAPIView):
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = ProductFilter
 
-    def get(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())  # Применяем фильтры
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
     def get_queryset(self):
         queryset = super().get_queryset()
-
-        # Выводим SQL-запрос в консоль
-        print("SQL Query:", str(queryset.query))
-
-        return queryset
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        queryset = self.filter_queryset(queryset)  # Применяем фильтры вручную
-        print("SQL после фильтрации:", queryset.query)  # Смотрим, изменился ли SQL-запрос
-        return queryset
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        print("SQL:", queryset.query)  # Проверяем SQL-запрос в консоли
+        queryset = self.filter_queryset(queryset)  # Применяем фильтрацию
         return queryset
 
     @swagger_auto_schema(
         tags=['homepage'],
-        operation_description="Этот эндпоинт возвращает данные для главной страницы, "
-                              "включая популярные товары, товары на акциях и категорию акций.",
-        responses={
-            200: openapi.Response(
-                description="Успешный ответ с данными для главной страницы",
-                examples={
-                    'application/json': {
-                        "homepage": {
-                            "popularProducts": [
-                                {
-                                    "productId": 1,
-                                    "productImg": "https://example.com/images/product1.jpg",
-                                    "productTitle": "Продукт 1",
-                                    "average_rating": 4.5,
-                                    "comments_count": 20,
-                                    "price": "100.00",
-                                    "seasonality": "summer",
-                                    "is_favorite": True,
-                                    "in_stock": 49
-                                }
-                            ],
-                            "promotions": [
-                                {
-                                    "promotionId": 7,
-                                    "promotionImg": "http://example.com/images/promotion1.jpg",
-                                    "promotionTitle": "Скидка 20% на продукт",
-                                    "promotionPrice": "80.00",
-                                    "promotionEndTime": "3d 5h 10m 30s",
-                                    "promotionCategory": [
-                                        "Motor oil",
-                                        "Автомасло"
-                                    ]
-                                }
-                            ]
-                        }
-                    }
-                },
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'homepage': openapi.Schema(
-                            type=openapi.TYPE_OBJECT,
-                            properties={
-                                'popularProducts': openapi.Schema(
-                                    type=openapi.TYPE_ARRAY,
-                                    items=openapi.Schema(
-                                        type=openapi.TYPE_OBJECT,
-                                        properties={
-                                            'productId': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID товара'),
-                                            'productImg': openapi.Schema(type=openapi.TYPE_STRING, description='Изображение товара'),
-                                            'productTitle': openapi.Schema(type=openapi.TYPE_STRING, description='Название товара'),
-                                            'average_rating': openapi.Schema(type=openapi.TYPE_NUMBER, description='Средний рейтинг товара'),
-                                            'comments_count': openapi.Schema(type=openapi.TYPE_INTEGER, description='Количество комментариев'),
-                                            'price': openapi.Schema(type=openapi.TYPE_STRING, description='Цена товара'),
-                                            'seasonality': openapi.Schema(type=openapi.TYPE_STRING, description='Сезонность товара'),
-                                            'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN, description='Товар в избранном'),
-                                            'in_stock': openapi.Schema(type=openapi.TYPE_INTEGER, description='Количество в складе ')
-                                        }
-                                    )
-                                ),
-                                'promotions': openapi.Schema(
-                                    type=openapi.TYPE_ARRAY,
-                                    items=openapi.Schema(
-                                        type=openapi.TYPE_OBJECT,
-                                        properties={
-                                            'promotionId': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID акции'),
-                                            'promotionImg': openapi.Schema(type=openapi.TYPE_STRING, description='Изображение акции'),
-                                            'promotionTitle': openapi.Schema(type=openapi.TYPE_STRING, description='Название акции'),
-                                            'promotionPrice': openapi.Schema(type=openapi.TYPE_STRING, description='Цена товара по акции'),
-                                            'promotionEndTime': openapi.Schema(type=openapi.TYPE_STRING, description='Время окончания акции'),
-                                            'promotionCategory': openapi.Schema(
-                                                type=openapi.TYPE_ARRAY,
-                                                items=openapi.Schema(type=openapi.TYPE_STRING, description='Категория акции')
-                                            )
-                                        }
-                                    )
-                                )
-                            }
-                        )
-                    }
-                )
-            ),
-            404: openapi.Response(
-                description="Не найдено данных для главной страницы"
-            ),
-            500: openapi.Response(
-                description="Ошибка сервера"
-            ),
-        }
+        operation_description="Этот эндпоинт возвращает данные для главной страницы...",
     )
-    def get(self, request):
-        products = Product.objects.annotate(
+    def list(self, request, *args, **kwargs):
+        # Получаем отфильтрованный queryset
+        queryset = self.get_queryset()
+
+        # Популярные товары
+        products = queryset.annotate(
             comments_count=Count('comment'),
             average_rating=Avg('comment__rating')
         ).filter(
             comments_count__gt=0,
             average_rating__isnull=False
-        )
-
-        sorted_products = products.order_by(
+        ).order_by(
             F('average_rating').desc(nulls_last=True),
             '-comments_count'
         )
 
-        popular_products = []
-        for product in sorted_products[:4]:
-            product_data = {
+        popular_products = [
+            {
                 "productId": product.id,
                 "productImg": product.image.url,
                 "productTitle": product.title,
@@ -175,82 +70,223 @@ class HomepageView(ListAPIView):
                 "is_favorite": product.is_favorite,
                 "in_stock": product.in_stock,
             }
-            popular_products.append(product_data)
+            for product in products[:4]
+        ]
 
-        promotions = Product.objects.filter(
+        # Акции
+        promotions = queryset.filter(
             promotion__isnull=False,
             promotion_end_date__gt=timezone.now()
         )
 
-        promotion_data = []
-        for product in promotions:
-            if product.promotion_end_date:
-                time_remaining = product.promotion_end_date - timezone.now()
-                if time_remaining.total_seconds() <= 0:
-                    promotion_end_time = "Акция завершена"
-                else:
-                    days_remaining = time_remaining.days
-                    hours_remaining = time_remaining.seconds // 3600
-                    minutes_remaining = (time_remaining.seconds % 3600) // 60
-                    seconds_remaining = time_remaining.seconds % 60
-                    promotion_end_time = f"{days_remaining}d {hours_remaining}h {minutes_remaining}m {seconds_remaining}s"
-            else:
-                promotion_end_time = "Not set"
-
-            promotion_categories = product.promotion_category.all()
-            promotion_category_data = [
-                category.value for category in promotion_categories
-            ]
-
-            promotion_data.append({
+        promotion_data = [
+            {
                 "promotionId": product.id,
                 "promotionImg": product.image.url,
                 "promotionTitle": product.title,
                 "promotionPrice": str(product.promotion),
-                "promotionEndTime": promotion_end_time,
-                "promotionCategory": promotion_category_data,
-            })
+                "promotionEndTime": self.get_promotion_time_remaining(product.promotion_end_date),
+                "promotionCategory": [category.value for category in product.promotion_category.all()],
+            }
+            for product in promotions
+        ]
 
+        # Формируем ответ
         homepage_data = {
             "homepage": {
                 "popularProducts": popular_products,
                 "promotions": promotion_data
             }
         }
-
         return Response(homepage_data)
-class CategoriesListView(APIView):
 
+    def get_promotion_time_remaining(self, end_date):
+        """Вспомогательный метод для расчёта оставшегося времени акции."""
+        if not end_date:
+            return "Not set"
+
+        time_remaining = end_date - timezone.now()
+        if time_remaining.total_seconds() <= 0:
+            return "Акция завершена"
+
+        days = time_remaining.days
+        hours = time_remaining.seconds // 3600
+        minutes = (time_remaining.seconds % 3600) // 60
+        seconds = time_remaining.seconds % 60
+        return f"{days}d {hours}h {minutes}m {seconds}s"
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.views import APIView
+from .models import Category
+from .serializers import CategoriesSerializer
+class CategoriesListView(APIView):
+    """
+    API для получения списка категорий и добавления новой категории.
+    """
+
+    @swagger_auto_schema(
+        operation_summary="Получение списка категорий",
+        operation_description="Возвращает список всех категорий с их переводами.",
+        responses={200: CategoriesSerializer(many=True)},
+    )
     def get(self, request):
+        """
+        Возвращает список всех категорий.
+
+        **Пример ответа**:
+        ```json
+        [
+            {
+                "id": 1,
+                "label": "АВТОМОБИЛЬНЫЕ ШИНЫ",
+                "value": "Car tires"
+            },
+            {
+                "id": 2,
+                "label": "ГРУЗОВЫЕ МАШИНЫ",
+                "value": "Trucks"
+            }
+        ]
+        ```
+        """
         categories = Category.objects.all()
         serializer = CategoriesSerializer(categories, many=True)
         return Response(serializer.data)
 
+    @swagger_auto_schema(
+        operation_summary="Добавление новой категории",
+        operation_description="Добавляет новую категорию. Если значение `value` не передано, оно автоматически переводится.",
+        request_body=CategoriesSerializer,
+        responses={
+            201: openapi.Response(
+                description="Категория успешно создана",
+                examples={
+                    "application/json": {"label": "АВТОМОБИЛЬНЫЕ ШИНЫ", "value": "Car tires"}
+                },
+            ),
+            400: openapi.Response(
+                description="Ошибка валидации",
+                examples={
+                    "application/json": {"label": ["This field may not be blank."]}
+                },
+            ),
+        },
+    )
     def post(self, request):
+        """
+        Добавляет новую категорию.
+
+        **Пример запроса**:
+        ```json
+        {
+            "label": "Автомобильные шины"
+        }
+        ```
+
+        **Пример успешного ответа**:
+        ```json
+        {
+            "label": "АВТОМОБИЛЬНЫЕ ШИНЫ",
+            "value": "Car tires"
+        }
+        ```
+
+        **Ошибки**:
+        - `400 Bad Request`: Если `label` пустой или содержит некорректные данные.
+        """
         serializer = CategoriesSerializer(data=request.data)
         if serializer.is_valid():
             category = serializer.save()
-            # Возвращаем label и value
             return Response({'label': category.label, 'value': category.value}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-
 class FavoriteProduct(APIView):
     """
     Получение списка избранных продуктов и обновление статуса "избранного".
     """
 
+    @swagger_auto_schema(
+        operation_summary="Получение списка избранных продуктов",
+        operation_description="Возвращает список всех продуктов, отмеченных как избранные (`is_favorite=True`).",
+        responses={
+            200: openapi.Response(
+                description="Список избранных продуктов",
+                examples={
+                    "application/json": [
+                        {
+                            "id": 1,
+                            "name": "Продукт 1",
+                            "is_favorite": True
+                        },
+                        {
+                            "id": 2,
+                            "name": "Продукт 2",
+                            "is_favorite": True
+                        }
+                    ]
+                }
+            )
+        }
+    )
     def get(self, request):
         # Получаем все избранные продукты
         queryset = Product.objects.filter(is_favorite=True)
         serializer = FavoriteProductListSerializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @swagger_auto_schema(
+        operation_summary="Обновление статуса избранного у продукта",
+        operation_description=(
+            "Обновляет статус `is_favorite` для указанного продукта. "
+            "Если `is_favorite` передано, устанавливает его значение. "
+            "Если не передано, меняет текущее значение `is_favorite` на противоположное."
+        ),
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["product_id"],
+            properties={
+                "product_id": openapi.Schema(
+                    type=openapi.TYPE_INTEGER,
+                    title="Product ID",
+                    description="ID продукта, у которого меняется статус избранного.",
+                ),
+                "is_favorite": openapi.Schema(
+                    type=openapi.TYPE_BOOLEAN,
+                    title="Is Favorite",
+                    description="Флаг избранного (true - добавить в избранное, false - убрать).",
+                ),
+            },
+        ),
+        responses={
+            200: openapi.Response(
+                description="Статус избранного обновлен",
+                examples={
+                    "application/json": {
+                        "id": 1,
+                        "name": "Продукт 1",
+                        "is_favorite": True
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Ошибка валидации",
+                examples={
+                    "application/json": {"detail": "Product ID is required."}
+                },
+            ),
+            404: openapi.Response(
+                description="Продукт не найден",
+                examples={
+                    "application/json": {"detail": "Product not found."}
+                },
+            ),
+        }
+    )
     def post(self, request):
         # Получаем данные из POST-запроса
-        product_id = request.data.get('product_Id')
-        is_favorite = request.data.get('is_favorite')  # Получаем is_favorite, если оно есть
+        product_id = request.data.get('product_id')  # исправил product_Id на product_id
+        is_favorite = request.data.get('is_favorite')
 
         if product_id is None:
             return Response({"detail": "Product ID is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -272,35 +308,71 @@ class FavoriteProduct(APIView):
         serializer = FavoriteProductListSerializer(product)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
 class CommentCreateView(generics.CreateAPIView):
     """
-    Создание комментария с указанием product.
+    Создание комментария с указанием `product_id`.
     """
     serializer_class = CommentSerializer
     permission_classes = [AllowAny]
 
+    @swagger_auto_schema(
+        operation_summary="Создание комментария",
+        operation_description="Добавляет новый комментарий к продукту, указывая `product_id`, текст комментария и рейтинг.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["product_id", "comment", "rating"],
+            properties={
+                "product_id": openapi.Schema(
+                    type=openapi.TYPE_INTEGER,
+                    title="Product ID",
+                    description="ID продукта, к которому добавляется комментарий.",
+                ),
+                "comment": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    title="Comment",
+                    description="Текст комментария.",
+                    minLength=1,
+                ),
+                "rating": openapi.Schema(
+                    type=openapi.TYPE_NUMBER,
+                    title="Rating",
+                    description="Рейтинг продукта (от 1 до 5).",
+                    minimum=1,
+                    maximum=5,
+                ),
+            },
+        ),
+        responses={
+            201: openapi.Response(
+                description="Комментарий успешно создан",
+                examples={
+                    "application/json": {
+                        "id": 1,
+                        "product_id": 10,
+                        "comment": "Отличный товар!",
+                        "rating": 5
+                    }
+                },
+            ),
+            400: openapi.Response(
+                description="Ошибка валидации",
+                examples={
+                    "application/json": {"product_id": ["Продукт с таким ID не найден."]},
+                },
+            ),
+        },
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+
     def perform_create(self, serializer):
-        product_id = self.request.data.get("product")  # Теперь берем `product` вместо `product_id`
+        product_id = self.request.data.get("product_id")  # Теперь используем `product_id`
         try:
-            product = Product.objects.get(id=product_id)  # Проверяем, существует ли продукт
+            product = Product.objects.get(id=product_id)
         except Product.DoesNotExist:
-            raise ValidationError({"product": "Продукт с таким ID не найден."})
+            raise ValidationError({"product_id": "Продукт с таким ID не найден."})
 
         serializer.save(product=product)  # Привязываем комментарий к продукту
-
-
-def round_to_half(value):
-
-    return round(value * 2) / 2
-
-
-@receiver(post_save, sender=Comment)
-@receiver(post_delete, sender=Comment)
-def update_product_rating(sender, instance, **kwargs):
-    """Этот метод теперь просто триггерит обновление кеша, если нужно, но ничего не сохраняет в БД."""
-    product = instance.product
-
 class ProductCommentListView(generics.ListAPIView):
     """
     Получение всех комментариев к конкретному продукту.
