@@ -43,19 +43,56 @@ class HomepageView(ListAPIView):
     serializer_class = ProductSerializerHomepage
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = ProductFilter
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        return self.filter_queryset(queryset)
+    search_fields = ['title', 'category__value']
 
     @swagger_auto_schema(
         tags=['Homepage'],
         operation_summary="Получение данных для главной страницы",
         operation_description=(
-            "Этот эндпоинт возвращает данные для главной страницы, включая:\n"
-            "- Популярные товары (сортируются по среднему рейтингу и количеству отзывов)\n"
-            "- Товары, участвующие в акциях (с учетом времени окончания акции)"
+            "Этот эндпоинт возвращает данные для главной страницы, включая популярные товары и товары с акциями.\n"
+            "Доступные параметры фильтрации:\n"
+            " - **manufacturer**: Фильтр по производителю (поиск без учета регистра)\n"
+            " - **model**: Фильтр по модели (поиск без учета регистра)\n"
+            " - **generation**: Фильтр по поколению (поиск без учета регистра)\n"
+            " - **modification**: Фильтр по модификации (поиск без учета регистра)\n"
+            " - **body_type**: Фильтр по типу кузова. Принимает английское значение (например, sidan), "
+            "которое конвертируется в русское название для фильтрации."
         ),
+        manual_parameters=[
+            openapi.Parameter(
+                'manufacturer',
+                openapi.IN_QUERY,
+                description="Фильтр по производителю (без учета регистра)",
+                type=openapi.TYPE_STRING
+            ),
+            openapi.Parameter(
+                'model',
+                openapi.IN_QUERY,
+                description="Фильтр по модели (без учета регистра)",
+                type=openapi.TYPE_STRING
+            ),
+            openapi.Parameter(
+                'generation',
+                openapi.IN_QUERY,
+                description="Фильтр по поколению (без учета регистра)",
+                type=openapi.TYPE_STRING
+            ),
+            openapi.Parameter(
+                'modification',
+                openapi.IN_QUERY,
+                description="Фильтр по модификации (без учета регистра)",
+                type=openapi.TYPE_STRING
+            ),
+            openapi.Parameter(
+                'body_type',
+                openapi.IN_QUERY,
+                description=(
+                    "Фильтр по типу кузова. Принимает английское значение (например, sidan), "
+                    "которое конвертируется в русское название для фильтрации."
+                ),
+                type=openapi.TYPE_STRING
+            ),
+        ],
         responses={
             200: openapi.Response(
                 description="Данные для главной страницы",
@@ -148,7 +185,6 @@ class HomepageView(ListAPIView):
             for product in promotions
         ]
 
-        # Формируем ответ
         homepage_data = {
             "homepage": {
                 "popularProducts": popular_products,
@@ -156,6 +192,10 @@ class HomepageView(ListAPIView):
             }
         }
         return Response(homepage_data)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        return self.filter_queryset(queryset)
 
     def get_promotion_time_remaining(self, end_date):
         """Вспомогательный метод для расчёта оставшегося времени акции."""
@@ -171,7 +211,6 @@ class HomepageView(ListAPIView):
         minutes = (time_remaining.seconds % 3600) // 60
         seconds = time_remaining.seconds % 60
         return f"{days}d {hours}h {minutes}m {seconds}s"
-
 class CategoriesListView(APIView):
     """
     API для получения списка категорий и добавления новой категории.
