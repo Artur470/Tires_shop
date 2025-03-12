@@ -5,7 +5,13 @@ from django.shortcuts import render, get_object_or_404
 from rest_framework import generics
 from rest_framework.generics import GenericAPIView
 from django.db.models import Count, Avg, F
-
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.views import APIView
+from .models import Category
+from .serializers import CategoriesSerializer
 import logging
 from rest_framework.views import APIView
 from .models import Product, Category, Comment
@@ -28,6 +34,11 @@ from .filters import ProductFilter
 from django_filters.rest_framework import DjangoFilterBackend
 logger = logging.getLogger(__name__)
 class HomepageView(ListAPIView):
+    """
+    API для получения данных главной страницы:
+    - Популярные товары (на основе количества комментариев и среднего рейтинга)
+    - Товары с акциями (с учетом даты окончания акции)
+    """
     queryset = Product.objects.all()
     serializer_class = ProductSerializerHomepage
     filter_backends = [DjangoFilterBackend, SearchFilter]
@@ -35,15 +46,62 @@ class HomepageView(ListAPIView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        queryset = self.filter_queryset(queryset)  # Применяем фильтрацию
-        return queryset
+        return self.filter_queryset(queryset)
 
     @swagger_auto_schema(
-        tags=['homepage'],
-        operation_description="Этот эндпоинт возвращает данные для главной страницы...",
+        tags=['Homepage'],
+        operation_summary="Получение данных для главной страницы",
+        operation_description=(
+            "Этот эндпоинт возвращает данные для главной страницы, включая:\n"
+            "- Популярные товары (сортируются по среднему рейтингу и количеству отзывов)\n"
+            "- Товары, участвующие в акциях (с учетом времени окончания акции)"
+        ),
+        responses={
+            200: openapi.Response(
+                description="Данные для главной страницы",
+                examples={
+                    "application/json": {
+                        "homepage": {
+                            "popularProducts": [
+                                {
+                                    "productId": 1,
+                                    "productImg": "https://example.com/product1.jpg",
+                                    "productTitle": "Продукт 1",
+                                    "average_rating": 4.5,
+                                    "comments_count": 10,
+                                    "price": "1500.00",
+                                    "seasonality": "summer",
+                                    "is_favorite": True,
+                                    "in_stock": True
+                                },
+                                {
+                                    "productId": 2,
+                                    "productImg": "https://example.com/product2.jpg",
+                                    "productTitle": "Продукт 2",
+                                    "average_rating": 4.3,
+                                    "comments_count": 8,
+                                    "price": "1200.00",
+                                    "seasonality": "winter",
+                                    "is_favorite": False,
+                                    "in_stock": False
+                                }
+                            ],
+                            "promotions": [
+                                {
+                                    "promotionId": 3,
+                                    "promotionImg": "https://example.com/promo1.jpg",
+                                    "promotionTitle": "Акционный товар 1",
+                                    "promotionPrice": "999.00",
+                                    "promotionEndTime": "2d 3h 30m 15s"
+                                }
+                            ]
+                        }
+                    }
+                }
+            )
+        }
     )
     def list(self, request, *args, **kwargs):
-        # Получаем отфильтрованный queryset
         queryset = self.get_queryset()
 
         # Популярные товары
@@ -86,7 +144,6 @@ class HomepageView(ListAPIView):
                 "promotionTitle": product.title,
                 "promotionPrice": str(product.promotion),
                 "promotionEndTime": self.get_promotion_time_remaining(product.promotion_end_date),
-                "promotionCategory": [category.value for category in product.promotion_category.all()],
             }
             for product in promotions
         ]
@@ -114,13 +171,7 @@ class HomepageView(ListAPIView):
         minutes = (time_remaining.seconds % 3600) // 60
         seconds = time_remaining.seconds % 60
         return f"{days}d {hours}h {minutes}m {seconds}s"
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.views import APIView
-from .models import Category
-from .serializers import CategoriesSerializer
+
 class CategoriesListView(APIView):
     """
     API для получения списка категорий и добавления новой категории.

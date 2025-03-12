@@ -42,11 +42,11 @@ class ProductSerializerHomepage(serializers.ModelSerializer):
     average_rating = serializers.SerializerMethodField()
     comments_count = serializers.IntegerField(source="comment_set.count", read_only=True)
     image = serializers.SerializerMethodField()
-    promotion_category = CategoriesSerializer(many=True, read_only=True)
+
 
     class Meta:
         model = Product
-        fields = ['product_Id', 'image', 'seasonality', 'average_rating', 'comments_count', 'title', 'in_stock', 'price', 'is_favorite', 'promotion_category']
+        fields = ['product_Id', 'image', 'seasonality', 'average_rating', 'comments_count', 'title', 'in_stock', 'price', 'is_favorite',]
 
 
     def get_image(self, obj):

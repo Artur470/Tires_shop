@@ -20,9 +20,7 @@ class Product(models.Model):
     speed_index = models.CharField(max_length=100)
     load_indices = models.CharField(max_length=500)
     load_indices_for_double = models.CharField(max_length=200)
-    promotion_category = models.ManyToManyField('Category', blank=True, related_name='promotion_products')
     is_favorite = models.BooleanField(default=False)
-
     manufacturer = models.CharField(max_length=200)
     model = models.CharField(max_length=255)
     generation = models.CharField(max_length=100, blank=True, null=True)
