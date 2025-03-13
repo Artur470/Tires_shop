@@ -545,8 +545,6 @@ class CustomPagination(PageNumberPagination):
         return pages
 
 
-
-
 class ProductListView(generics.ListAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializerll
@@ -558,6 +556,29 @@ class ProductListView(generics.ListAPIView):
     ordering_fields = ['price']  # Позволяем сортировать по цене
     ordering = ['price']  # По умолчанию сортируем по цене (дешевые -> дорогие)
 
+    # Описание параметров запроса
+    ordering_param = openapi.Parameter(
+        'ordering', openapi.IN_QUERY, description="Параметр сортировки товаров. "
+                                                 "Опции: 'expensive' (сначала дорогие), 'cheap' (сначала дешевые).",
+        type=openapi.TYPE_STRING, enum=['expensive', 'cheap'], required=False
+    )
+
+    @swagger_auto_schema(
+        operation_description="Получить список продуктов с возможностью фильтрации и сортировки по цене.",
+        manual_parameters=[ordering_param],  # Добавление параметра для сортировки
+        responses={
+            200: openapi.Response(
+                description="Список продуктов",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'total_count': openapi.Schema(type=openapi.TYPE_INTEGER, description="Общее количество товаров"),
+                        'results': openapi.Schema(type=openapi.TYPE_ARRAY, items=ProductSerializerll())
+                    }
+                )
+            )
+        }
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
         order_param = self.request.query_params.get('ordering', None)
