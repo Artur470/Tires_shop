@@ -6,6 +6,23 @@ from rest_framework import generics
 from rest_framework.generics import GenericAPIView
 from django.db.models import Count, Avg, F
 from drf_yasg.utils import swagger_auto_schema
+from rest_framework import generics
+from rest_framework.response import Response
+from rest_framework import status
+from .serializers import  CommentSerializer
+from .models import Product, Comment
+from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+from django.core.exceptions import ValidationError
+from rest_framework.decorators import api_view
+from rest_framework.pagination import PageNumberPagination
+from .filters import ProductFilter
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter
+
 from drf_yasg import openapi
 from rest_framework.response import Response
 from rest_framework import status
@@ -15,7 +32,7 @@ from .serializers import CategoriesSerializer
 import logging
 from rest_framework.views import APIView
 from .models import Product, Category, Comment
-from .serializers import ProductSerializerHomepage, CategoriesSerializer,  FavoriteProductListSerializer  , CommentSerializer
+from .serializers import ProductSerializerHomepage, CategoriesSerializer,  FavoriteProductListSerializer  , CommentSerializer, ProductSerializerll
 from rest_framework.response import Response
 from rest_framework import status
 from django_filters.rest_framework import DjangoFilterBackend
@@ -30,111 +47,114 @@ from .filters import ProductFilter
 from datetime import timedelta
 from rest_framework.filters import SearchFilter
 from rest_framework.generics import ListAPIView
-from .filters import ProductFilter
+from .filters import ProductFilterall
 from django_filters.rest_framework import DjangoFilterBackend
 logger = logging.getLogger(__name__)
 class HomepageView(ListAPIView):
     """
-    API для получения данных главной страницы:
-    - Популярные товары (на основе количества комментариев и среднего рейтинга)
-    - Товары с акциями (с учетом даты окончания акции)
+    **Описание эндпоинта:**
+
+    Этот эндпоинт предоставляет информацию для главной страницы, включая:
+
+    - **Популярные товары**: товары с наибольшим количеством комментариев и самым высоким средним рейтингом.
+    - **Товары с акциями**: товары, для которых активны акции, с учетом времени окончания.
+
+    Доступные параметры фильтрации:
+
+    - **manufacturer**: Фильтр по производителю (поиск без учета регистра).
+    - **model**: Фильтр по модели (поиск без учета регистра).
+    - **generation**: Фильтр по поколению (поиск без учета регистра).
+    - **modification**: Фильтр по модификации (поиск без учета регистра).
+    - **body_type**: Фильтр по типу кузова (например, "sedan").
+
+
+    **Ответ:**
+
+    В ответе содержатся следующие разделы:
+
+    - **popularProducts**: Список популярных товаров.
+    - **promotions**: Список товаров с активными акциями.
     """
+
     queryset = Product.objects.all()
     serializer_class = ProductSerializerHomepage
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = ProductFilter
-    search_fields = ['title', 'category__value']
+    search_fields = ['title', ]
 
     @swagger_auto_schema(
         tags=['Homepage'],
         operation_summary="Получение данных для главной страницы",
-        operation_description=(
-            "Этот эндпоинт возвращает данные для главной страницы, включая популярные товары и товары с акциями.\n"
-            "Доступные параметры фильтрации:\n"
-            " - **manufacturer**: Фильтр по производителю (поиск без учета регистра)\n"
-            " - **model**: Фильтр по модели (поиск без учета регистра)\n"
-            " - **generation**: Фильтр по поколению (поиск без учета регистра)\n"
-            " - **modification**: Фильтр по модификации (поиск без учета регистра)\n"
-            " - **body_type**: Фильтр по типу кузова. Принимает английское значение (например, sidan), "
-            "которое конвертируется в русское название для фильтрации."
-        ),
+        operation_description="Этот эндпоинт возвращает данные для главной страницы, включая популярные товары и товары с акциями.",
         manual_parameters=[
             openapi.Parameter(
-                'manufacturer',
-                openapi.IN_QUERY,
-                description="Фильтр по производителю (без учета регистра)",
-                type=openapi.TYPE_STRING
-            ),
+                'manufacturer', openapi.IN_QUERY, description="Фильтр по производителю (поиск без учета регистра)",
+                type=openapi.TYPE_STRING),
             openapi.Parameter(
-                'model',
-                openapi.IN_QUERY,
-                description="Фильтр по модели (без учета регистра)",
-                type=openapi.TYPE_STRING
-            ),
+                'model', openapi.IN_QUERY, description="Фильтр по модели (поиск без учета регистра)",
+                type=openapi.TYPE_STRING),
             openapi.Parameter(
-                'generation',
-                openapi.IN_QUERY,
-                description="Фильтр по поколению (без учета регистра)",
-                type=openapi.TYPE_STRING
-            ),
+                'generation', openapi.IN_QUERY, description="Фильтр по поколению (поиск без учета регистра)",
+                type=openapi.TYPE_STRING),
             openapi.Parameter(
-                'modification',
-                openapi.IN_QUERY,
-                description="Фильтр по модификации (без учета регистра)",
-                type=openapi.TYPE_STRING
-            ),
-            openapi.Parameter(
-                'body_type',
-                openapi.IN_QUERY,
-                description=(
-                    "Фильтр по типу кузова. Принимает английское значение (например, sidan), "
-                    "которое конвертируется в русское название для фильтрации."
-                ),
-                type=openapi.TYPE_STRING
-            ),
+                'modification', openapi.IN_QUERY, description="Фильтр по модификации (поиск без учета регистра)",
+                type=openapi.TYPE_STRING),
         ],
         responses={
             200: openapi.Response(
                 description="Данные для главной страницы",
-                examples={
-                    "application/json": {
-                        "homepage": {
-                            "popularProducts": [
-                                {
-                                    "productId": 1,
-                                    "productImg": "https://example.com/product1.jpg",
-                                    "productTitle": "Продукт 1",
-                                    "average_rating": 4.5,
-                                    "comments_count": 10,
-                                    "price": "1500.00",
-                                    "seasonality": "summer",
-                                    "is_favorite": True,
-                                    "in_stock": True
-                                },
-                                {
-                                    "productId": 2,
-                                    "productImg": "https://example.com/product2.jpg",
-                                    "productTitle": "Продукт 2",
-                                    "average_rating": 4.3,
-                                    "comments_count": 8,
-                                    "price": "1200.00",
-                                    "seasonality": "winter",
-                                    "is_favorite": False,
-                                    "in_stock": False
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "popular": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    "product_Id": openapi.Schema(type=openapi.TYPE_INTEGER,
+                                                                 description="Идентификатор товара"),
+                                    "image": openapi.Schema(type=openapi.TYPE_STRING, format="url",
+                                                            description="Ссылка на изображение товара"),
+                                    "season": openapi.Schema(type=openapi.TYPE_STRING,
+                                                                  description="Сезонность товара (например, зимний)"),
+                                    "average_rating": openapi.Schema(type=openapi.TYPE_STRING,
+                                                                     description="Средний рейтинг товара"),
+                                    "comments_count": openapi.Schema(type=openapi.TYPE_INTEGER,
+                                                                     description="Количество комментариев к товару"),
+                                    "title": openapi.Schema(type=openapi.TYPE_STRING, description="Название товара"),
+                                    "in_stock": openapi.Schema(type=openapi.TYPE_INTEGER,
+                                                               description="Количество товара в наличии"),
+                                    "price": openapi.Schema(type=openapi.TYPE_STRING, description="Цена товара"),
+                                    "is_favorite": openapi.Schema(type=openapi.TYPE_BOOLEAN,
+                                                                  description="Признак избранного товара"),
                                 }
-                            ],
-                            "promotions": [
-                                {
-                                    "promotionId": 3,
-                                    "promotionImg": "https://example.com/promo1.jpg",
-                                    "promotionTitle": "Акционный товар 1",
-                                    "promotionPrice": "999.00",
-                                    "promotionEndTime": "2d 3h 30m 15s"
+                            )
+                        ),
+                        "promotion": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    "promotion_id": openapi.Schema(type=openapi.TYPE_INTEGER,
+                                                                   description="Идентификатор акции"),
+                                    "promotion_image": openapi.Schema(type=openapi.TYPE_STRING, format="url",
+                                                                      description="Ссылка на изображение акции"),
+                                    "promotion_title": openapi.Schema(type=openapi.TYPE_STRING,
+                                                                      description="Название акции"),
+                                    "promotion_price": openapi.Schema(type=openapi.TYPE_STRING,
+                                                                      description="Цена товара с акцией"),
+                                    "promotion_end_time": openapi.Schema(type=openapi.TYPE_STRING,
+                                                                         description="Время окончания акции"),
+                                    "promotion_category": openapi.Schema(
+                                        type=openapi.TYPE_ARRAY,
+                                        items=openapi.Items(type=openapi.TYPE_STRING),
+                                        description="Категории товаров с акциями"
+                                    ),
                                 }
-                            ]
-                        }
+                            )
+                        ),
                     }
-                }
+                )
             )
         }
     )
@@ -142,7 +162,7 @@ class HomepageView(ListAPIView):
         queryset = self.get_queryset()
 
         # Популярные товары
-        products = queryset.annotate(
+        popular_products = queryset.annotate(
             comments_count=Count('comment'),
             average_rating=Avg('comment__rating')
         ).filter(
@@ -153,22 +173,22 @@ class HomepageView(ListAPIView):
             '-comments_count'
         )
 
-        popular_products = [
+        popular_products_data = [
             {
-                "productId": product.id,
-                "productImg": product.image.url,
-                "productTitle": product.title,
-                "average_rating": product.average_rating,
+                "product_Id": product.id,
+                "image": product.image.url,
+                "season": product.season.label if product.season else None,
+                "average_rating": str(product.average_rating),
                 "comments_count": product.comments_count,
-                "price": str(product.price),
-                "seasonality": product.seasonality,
-                "is_favorite": product.is_favorite,
+                "title": product.title,
                 "in_stock": product.in_stock,
+                "price": str(product.price),
+                "is_favorite": product.is_favorite,
             }
-            for product in products[:4]
+            for product in popular_products[:4]
         ]
 
-        # Акции
+        # Товары с акциями
         promotions = queryset.filter(
             promotion__isnull=False,
             promotion_end_date__gt=timezone.now()
@@ -176,21 +196,22 @@ class HomepageView(ListAPIView):
 
         promotion_data = [
             {
-                "promotionId": product.id,
-                "promotionImg": product.image.url,
-                "promotionTitle": product.title,
-                "promotionPrice": str(product.promotion),
-                "promotionEndTime": self.get_promotion_time_remaining(product.promotion_end_date),
+                "promotion_id": product.id,
+                "promotion_image": product.image.url,
+                "promotion_title": product.title,
+                "promotion_price": str(product.promotion),
+                "promotion_end_time": self.get_promotion_time_remaining(product.promotion_end_date),
+                "promotion_category": product.promotionCategory.split(", ") if product.promotionCategory else [],
             }
-            for product in promotions
+            for product in promotions[:3]
+
         ]
 
         homepage_data = {
-            "homepage": {
-                "popularProducts": popular_products,
-                "promotions": promotion_data
-            }
+            "popular": popular_products_data,
+            "promotion": promotion_data,
         }
+
         return Response(homepage_data)
 
     def get_queryset(self):
@@ -473,3 +494,83 @@ class ProductCommentListView(generics.ListAPIView):
     def get_queryset(self):
         product_id = self.kwargs["product_id"]
         return Comment.objects.filter(product_id=product_id)
+
+
+class CustomPagination(PageNumberPagination):
+    page_size = 12
+    page_size_query_param = 'page_size'
+    max_page_size = 12
+
+    def get_paginated_response(self, data):
+        total_pages = self.page.paginator.num_pages
+        current_page = self.page.number
+
+
+        page_numbers = self.get_page_numbers(total_pages, current_page)
+
+        return Response({
+            'total_pages': total_pages,
+            'current_page': current_page,
+            'has_next': self.page.has_next(),
+            'has_previous': self.page.has_previous(),
+            'next_page': self.page.next_page_number() if self.page.has_next() else None,
+            'previous_page': self.page.previous_page_number() if self.page.has_previous() else None,
+            'pages': page_numbers,  # Список номеров страниц для кнопок
+            'products': data
+        })
+
+    def get_page_numbers(self, total_pages, current_page):
+        """Генерирует список страниц в формате [1, 2, 3, 4, 5, ..., 125]"""
+        max_buttons = 5  # Количество кнопок (по 2 слева и справа от текущей страницы)
+        pages = []
+
+        if total_pages <= max_buttons:
+            pages = list(range(1, total_pages + 1))
+        else:
+            left = max(1, current_page - 2)
+            right = min(total_pages, current_page + 2)
+
+            if left > 1:
+                pages.append(1)
+                if left > 2:
+                    pages.append("...")
+
+            pages.extend(range(left, right + 1))
+
+            if right < total_pages:
+                if right < total_pages - 1:
+                    pages.append("...")
+                pages.append(total_pages)
+
+        return pages
+
+
+
+
+class ProductListView(generics.ListAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializerll
+    permission_classes = [AllowAny]
+    pagination_class = CustomPagination
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_class = ProductFilterall
+    search_fields = ['title']
+    ordering_fields = ['price']  # Позволяем сортировать по цене
+    ordering = ['price']  # По умолчанию сортируем по цене (дешевые -> дорогие)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        order_param = self.request.query_params.get('ordering', None)
+
+        if order_param == 'expensive':  # Если выбрали сначала дорогие
+            return queryset.order_by('-price')
+        elif order_param == 'cheap':  # Если выбрали сначала дешевые
+            return queryset.order_by('price')
+
+        return queryset
+
+    def get(self, request, *args, **kwargs):
+        response = super().get(request, *args, **kwargs)
+        total_count = self.get_queryset().count()  # Подсчитываем количество товаров
+        response.data['total_count'] = total_count  # Добавляем в ответ
+        return response
