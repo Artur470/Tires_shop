@@ -90,7 +90,7 @@ class FavoriteProductListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['product_Id', 'image', 'price', 'seasonality', 'title', 'inStock', 'is_favorite']
+        fields = ['product_Id', 'image', 'price', 'season', 'title', 'in_stock', 'is_favorite']
 
 class CommentSerializer(serializers.ModelSerializer):
     product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
@@ -106,20 +106,20 @@ class CommentSerializer(serializers.ModelSerializer):
         if not Product.objects.filter(id=value).exists():
             raise serializers.ValidationError("Такого продукта не существует")
         return value
-
-
 class ProductSerializerll(serializers.ModelSerializer):
-    product_Id = serializers.IntegerField(source='id')
-    average_rating = serializers.SerializerMethodField()
-    comments_count = serializers.IntegerField(source="comment_set.count", read_only=True)
-    image = serializers.SerializerMethodField()
-    season = serializers.SerializerMethodField()
+    product_Id = serializers.IntegerField(source='id', help_text="id товара")
+    average_rating = serializers.SerializerMethodField(help_text="средний статистический рейтинг")
+    comments_count = serializers.IntegerField(source="comment_set.count", read_only=True, help_text="количество комментариев")
+    image = serializers.SerializerMethodField(help_text="изображение товара")
+    season = serializers.SerializerMethodField(help_text="Сезонность шин: лето, зима, всесезонные.")
+    is_favorite = serializers.BooleanField(default=False, help_text="избранный в каталоге который добавляет в избранные если равна к true.")
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, help_text="цена без учета скидки")
+    in_stock = serializers.IntegerField(help_text="количество товара в складе")
+    title = serializers.CharField(max_length=100, help_text="названия товара")
 
     class Meta:
         model = Product
-        fields = ['product_Id', 'image',  'average_rating', 'comments_count',
-            'title', 'in_stock', 'price', 'is_favorite', "season",]
-
+        fields = ['product_Id', 'image', 'average_rating', 'comments_count', 'title', 'in_stock', 'price', 'is_favorite', "season"]
 
     # Swagger-описание для promotion_category
     promotion_category_schema = openapi.Schema(
@@ -132,25 +132,19 @@ class ProductSerializerll(serializers.ModelSerializer):
         if obj.season:
             return obj.season.label  # Возвращаем значение label, а не id
         return None
+
     def get_image(self, obj):
         if obj.image:
             return obj.image.url
         return None
+
     def get_comments_count(self, obj):
         return obj.comments.count()
 
     def get_average_rating(self, obj):
-        return obj.average_rating
-
-
-
-    def get_average_rating(self, obj):
-
         comments = obj.comment_set.all()
         from .utils import round_to_half
         if not comments:
             return 0.0
         total_rating = sum(comment.rating for comment in comments)
         return round_to_half(total_rating / len(comments))
-
-

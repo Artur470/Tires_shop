@@ -5,6 +5,7 @@ from django.shortcuts import render, get_object_or_404
 from rest_framework import generics
 from rest_framework.generics import GenericAPIView
 from django.db.models import Count, Avg, F
+import requests
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics
 from rest_framework.response import Response
@@ -204,9 +205,9 @@ class HomepageView(ListAPIView):
                 "promotion_category": product.promotionCategory.split(", ") if product.promotionCategory else [],
             }
             for product in promotions[:3]
-
         ]
 
+        # Создание данных для главной страницы без "favorites"
         homepage_data = {
             "popular": popular_products_data,
             "promotion": promotion_data,
@@ -214,6 +215,63 @@ class HomepageView(ListAPIView):
 
         return Response(homepage_data)
 
+    @swagger_auto_schema(
+        tags=['Homepage'],
+        operation_summary="Добавить товар в избранное",
+        operation_description="Этот эндпоинт обновляет статус товара в избранном (добавить).",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'product_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Идентификатор товара"),
+                'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN,
+                                              description="True для добавления в избранное"),
+            },
+            required=['product_id', 'is_favorite']
+        ),
+        responses={
+            200: openapi.Response(
+                description="Обновленный товар",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Идентификатор товара"),
+                        'name': openapi.Schema(type=openapi.TYPE_STRING, description="Название товара"),
+                        'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN,
+                                                      description="Статус избранного товара"),
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Ошибка: отсутствуют обязательные параметры",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description="Описание ошибки")
+                    }
+                )
+            )
+        }
+    )
+    def post(self, request):
+        product_id = request.data.get('product_id')
+        is_favorite = request.data.get('is_favorite')
+
+        if not product_id or is_favorite is None:
+            return Response({"detail": "Product ID and is_favorite are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Получаем продукт по ID
+        product = get_object_or_404(Product, id=product_id)
+
+        # Обновляем поле is_favorite, добавляя в избранное
+        product.is_favorite = is_favorite
+        product.save()
+
+        # Возвращаем обновленный товар
+        return Response({
+            "id": product.id,
+            "name": product.title,
+            "is_favorite": product.is_favorite
+        }, status=status.HTTP_200_OK)
     def get_queryset(self):
         queryset = super().get_queryset()
         return self.filter_queryset(queryset)
@@ -365,7 +423,7 @@ class FavoriteProduct(APIView):
                 "is_favorite": openapi.Schema(
                     type=openapi.TYPE_BOOLEAN,
                     title="Is Favorite",
-                    description="Флаг избранного (true - добавить в избранное, false - убрать).",
+                    description="Флаг избранного (false - убрать из избранного).",
                 ),
             },
         ),
@@ -396,7 +454,7 @@ class FavoriteProduct(APIView):
     )
     def post(self, request):
         # Получаем данные из POST-запроса
-        product_id = request.data.get('product_id')  # исправил product_Id на product_id
+        product_id = request.data.get('product_id')
         is_favorite = request.data.get('is_favorite')
 
         if product_id is None:
@@ -415,10 +473,27 @@ class FavoriteProduct(APIView):
         # Сохраняем продукт с обновленным значением is_favorite
         product.save()
 
+        # Если статус is_favorite True, добавляем товар в избранное через запрос
+        if product.is_favorite:
+            self.add_to_favorites(product.id)
+
         # Сериализуем обновленный продукт
         serializer = FavoriteProductListSerializer(product)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    def add_to_favorites(self, product_id):
+        # Здесь отправляем запрос на /product/favorites/ для добавления товара в избранное
+        url = "http://127.0.0.1:8000/product/favorites/"
+        data = {
+            "product_id": product_id,
+            "is_favorite": True
+        }
+        response = requests.post(url, json=data)
+
+        if response.status_code == 200:
+            print(f"Товар с ID {product_id} успешно добавлен в избранное.")
+        else:
+            print(f"Ошибка при добавлении товара с ID {product_id} в избранное.")
 class CommentCreateView(generics.CreateAPIView):
     """
     Создание комментария с указанием `product_id`.
@@ -494,8 +569,6 @@ class ProductCommentListView(generics.ListAPIView):
     def get_queryset(self):
         product_id = self.kwargs["product_id"]
         return Comment.objects.filter(product_id=product_id)
-
-
 class CustomPagination(PageNumberPagination):
     page_size = 12
     page_size_query_param = 'page_size'
@@ -504,7 +577,6 @@ class CustomPagination(PageNumberPagination):
     def get_paginated_response(self, data):
         total_pages = self.page.paginator.num_pages
         current_page = self.page.number
-
 
         page_numbers = self.get_page_numbers(total_pages, current_page)
 
@@ -546,52 +618,91 @@ class CustomPagination(PageNumberPagination):
 
 
 class ProductListView(generics.ListAPIView):
-    queryset = Product.objects.all()
+    """
+    Получение списка всех товаров.
+    """
+    queryset = Product.objects.all()  # Оставляем без сортировки
     serializer_class = ProductSerializerll
     permission_classes = [AllowAny]
     pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_class = ProductFilterall
+    filterset_class = ProductFilter
     search_fields = ['title']
     ordering_fields = ['price']  # Позволяем сортировать по цене
-    ordering = ['price']  # По умолчанию сортируем по цене (дешевые -> дорогие)
+    ordering = []  # Не устанавливаем сортировку по умолчанию
 
-    # Описание параметров запроса
-    ordering_param = openapi.Parameter(
-        'ordering', openapi.IN_QUERY, description="Параметр сортировки товаров. "
-                                                 "Опции: 'expensive' (сначала дорогие), 'cheap' (сначала дешевые).",
-        type=openapi.TYPE_STRING, enum=['expensive', 'cheap'], required=False
-    )
+    def get(self, request, *args, **kwargs):
+        # Получаем все товары без сортировки, чтобы порядок не менялся
+        products = self.get_queryset()
+
+        # Применяем пагинацию
+        page = self.paginate_queryset(products)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        # Если пагинация не используется, просто возвращаем все товары
+        serializer = self.get_serializer(products, many=True)
+        total_count = products.count()  # Подсчитываем количество товаров
+        return Response({
+            'total_count': total_count,
+            'results': serializer.data
+        })
 
     @swagger_auto_schema(
-        operation_description="Получить список продуктов с возможностью фильтрации и сортировки по цене.",
-        manual_parameters=[ordering_param],  # Добавление параметра для сортировки
+        tags=['Homepage'],
+        operation_summary="Добавить товар в избранное",
+        operation_description="Этот эндпоинт обновляет статус товара в избранном (добавить).",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'product_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Идентификатор товара"),
+                'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN,
+                                              description="True для добавления в избранное"),
+            },
+            required=['product_id', 'is_favorite']
+        ),
         responses={
             200: openapi.Response(
-                description="Список продуктов",
+                description="Обновленный товар",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        'total_count': openapi.Schema(type=openapi.TYPE_INTEGER, description="Общее количество товаров"),
-                        'results': openapi.Schema(type=openapi.TYPE_ARRAY, items=ProductSerializerll())
+                        'id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Идентификатор товара"),
+                        'title': openapi.Schema(type=openapi.TYPE_STRING, description="Название товара"),
+                        'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN,
+                                                      description="Статус избранного товара"),
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Ошибка: отсутствуют обязательные параметры",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description="Описание ошибки")
                     }
                 )
             )
         }
     )
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        order_param = self.request.query_params.get('ordering', None)
+    def post(self, request):
+        product_id = request.data.get('product_id')
+        is_favorite = request.data.get('is_favorite')
 
-        if order_param == 'expensive':  # Если выбрали сначала дорогие
-            return queryset.order_by('-price')
-        elif order_param == 'cheap':  # Если выбрали сначала дешевые
-            return queryset.order_by('price')
+        if not product_id or is_favorite is None:
+            return Response({"detail": "Product ID and is_favorite are required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        return queryset
+        # Получаем продукт по ID
+        product = get_object_or_404(Product, id=product_id)
 
-    def get(self, request, *args, **kwargs):
-        response = super().get(request, *args, **kwargs)
-        total_count = self.get_queryset().count()  # Подсчитываем количество товаров
-        response.data['total_count'] = total_count  # Добавляем в ответ
-        return response
+        # Обновляем поле is_favorite, добавляя в избранное
+        product.is_favorite = is_favorite
+        product.save()
+
+        # Возвращаем обновленный товар в том же виде, что и раньше
+        return Response({
+            "product_id": product.id,
+            "title": product.title,
+            "is_favorite": product.is_favorite
+        }, status=status.HTTP_200_OK)
