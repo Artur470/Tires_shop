@@ -615,13 +615,10 @@ class CustomPagination(PageNumberPagination):
                 pages.append(total_pages)
 
         return pages
-
-
 class ProductListView(generics.ListAPIView):
     """
     Получение списка всех товаров.
     """
-    queryset = Product.objects.all()  # Оставляем без сортировки
     serializer_class = ProductSerializerll
     permission_classes = [AllowAny]
     pagination_class = CustomPagination
@@ -629,54 +626,43 @@ class ProductListView(generics.ListAPIView):
     filterset_class = ProductFilter
     search_fields = ['title']
     ordering_fields = ['price']  # Позволяем сортировать по цене
-    ordering = []  # Не устанавливаем сортировку по умолчанию
+    ordering = ['id']  # Фиксируем порядок по ID
 
-    def get(self, request, *args, **kwargs):
-        # Получаем все товары без сортировки, чтобы порядок не менялся
-        products = self.get_queryset()
-
-        # Применяем пагинацию
-        page = self.paginate_queryset(products)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        # Если пагинация не используется, просто возвращаем все товары
-        serializer = self.get_serializer(products, many=True)
-        total_count = products.count()  # Подсчитываем количество товаров
-        return Response({
-            'total_count': total_count,
-            'results': serializer.data
-        })
+    def get_queryset(self):
+        return Product.objects.all().order_by('id')  # Гарантируем неизменяемый порядок
 
     @swagger_auto_schema(
         tags=['Homepage'],
-        operation_summary="Добавить товар в избранное",
-        operation_description="Этот эндпоинт обновляет статус товара в избранном (добавить).",
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                'product_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Идентификатор товара"),
-                'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN,
-                                              description="True для добавления в избранное"),
-            },
-            required=['product_id', 'is_favorite']
-        ),
+        operation_summary="Получить список всех товаров",
+        operation_description="Этот эндпоинт позволяет получить список всех товаров в базе данных с возможностью пагинации, фильтрации и поиска по названию.",
         responses={
             200: openapi.Response(
-                description="Обновленный товар",
+                description="Список товаров",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        'id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Идентификатор товара"),
-                        'title': openapi.Schema(type=openapi.TYPE_STRING, description="Название товара"),
-                        'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN,
-                                                      description="Статус избранного товара"),
+                        'total_count': openapi.Schema(type=openapi.TYPE_INTEGER, description="Общее количество товаров"),
+                        'results': openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Items(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    'product_Id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID товара"),
+                                    'title': openapi.Schema(type=openapi.TYPE_STRING, description="Название товара"),
+                                    'image': openapi.Schema(type=openapi.TYPE_STRING, description="URL изображения товара"),
+                                    'price': openapi.Schema(type=openapi.TYPE_STRING, description="Цена товара"),
+                                    'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Статус избранного"),
+                                    'season': openapi.Schema(type=openapi.TYPE_STRING, description="Сезон товара"),
+                                    'average_rating': openapi.Schema(type=openapi.TYPE_NUMBER, description="Средний рейтинг товара"),
+                                    'comments_count': openapi.Schema(type=openapi.TYPE_INTEGER, description="Количество комментариев")
+                                }
+                            )
+                        )
                     }
                 )
             ),
             400: openapi.Response(
-                description="Ошибка: отсутствуют обязательные параметры",
+                description="Ошибка: некорректные параметры запроса",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
@@ -686,21 +672,71 @@ class ProductListView(generics.ListAPIView):
             )
         }
     )
+    def get(self, request, *args, **kwargs):
+        products = self.get_queryset()
+
+        # Применяем пагинацию
+        page = self.paginate_queryset(products)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        # Без пагинации возвращаем полный список товаров
+        serializer = self.get_serializer(products, many=True)
+        return Response({
+            'total_count': products.count(),
+            'results': serializer.data
+        })
+
+
+    @swagger_auto_schema(
+        tags=['Homepage'],
+        operation_summary="Добавить товар в избранное",
+        operation_description="Этот эндпоинт обновляет статус товара в избранном (true/false).",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'product_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID товара"),
+                'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN, description="True/False — в избранное")
+            },
+            required=['product_id', 'is_favorite']
+        ),
+        responses={
+            200: openapi.Response(
+                description="Обновленный товар",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'product_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID товара"),
+                        'title': openapi.Schema(type=openapi.TYPE_STRING, description="Название товара"),
+                        'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Статус избранного")
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Ошибка: отсутствуют обязательные параметры",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={'detail': openapi.Schema(type=openapi.TYPE_STRING, description="Описание ошибки")}
+                )
+            )
+        }
+    )
     def post(self, request):
         product_id = request.data.get('product_id')
         is_favorite = request.data.get('is_favorite')
 
-        if not product_id or is_favorite is None:
-            return Response({"detail": "Product ID and is_favorite are required."}, status=status.HTTP_400_BAD_REQUEST)
+        # Проверка на валидность входных данных
+        if not isinstance(product_id, int) or not isinstance(is_favorite, bool):
+            return Response({"detail": "Некорректные данные. product_id должен быть числом, is_favorite — true/false."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Получаем продукт по ID
         product = get_object_or_404(Product, id=product_id)
 
-        # Обновляем поле is_favorite, добавляя в избранное
+        # Обновляем статус избранного
         product.is_favorite = is_favorite
-        product.save()
+        product.save(update_fields=['is_favorite'])  # Обновляем только is_favorite
 
-        # Возвращаем обновленный товар в том же виде, что и раньше
         return Response({
             "product_id": product.id,
             "title": product.title,
