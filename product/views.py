@@ -51,6 +51,9 @@ from rest_framework.generics import ListAPIView
 from .filters import ProductFilterall
 from django_filters.rest_framework import DjangoFilterBackend
 logger = logging.getLogger(__name__)
+
+
+
 class HomepageView(ListAPIView):
     """
     **Описание эндпоинта:**
@@ -207,10 +210,21 @@ class HomepageView(ListAPIView):
             for product in promotions[:3]
         ]
 
+        # Доступные фильтры
+        filters_data = {
+            "manufacturers": list(Product.objects.values_list("manufacturer", flat=True).distinct()),
+            "models": list(Product.objects.values_list("model", flat=True).distinct()),
+            "generations": list(Product.objects.values_list("generation", flat=True).distinct()),
+            "modifications": list(Product.objects.values_list("modification", flat=True).distinct()),
+
+
+        }
+
         # Создание данных для главной страницы без "favorites"
         homepage_data = {
             "popular": popular_products_data,
             "promotion": promotion_data,
+            "filters": filters_data
         }
 
         return Response(homepage_data)

@@ -22,7 +22,6 @@ class Manufacturer(models.Model):
 
 
 
-
 class TireType(models.Model):
     label = models.CharField(max_length=100, unique=True)  # "Легковое"
     value = models.CharField(max_length=100, unique=True)  # "passenger"
@@ -84,11 +83,7 @@ class Product(models.Model):
     wet_grip = models.CharField(max_length=1, choices=WET_GRIP_CHOICES)
     external_noise_level = models.IntegerField()
     condition = models.ForeignKey('Condition',on_delete=models.CASCADE)
-    runflat = models.BooleanField(default=False)
-    off_road = models.BooleanField(default=False)
-
-
-    season = models.ForeignKey(Season, on_delete=models.CASCADE, null=True, blank=True)
+    season = models.ForeignKey('Season', on_delete=models.CASCADE)
     tire_type = models.ForeignKey('TireType', on_delete=models.CASCADE)
     def __str__(self):
         return f"{self.title} - {self.id}"

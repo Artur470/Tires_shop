@@ -49,13 +49,13 @@ class ProductFilter(django_filters.FilterSet):
     generation = django_filters.CharFilter(field_name="generation", lookup_expr="icontains")
     modification = django_filters.CharFilter(field_name="modification", lookup_expr="icontains")
     # Фильтрация по body_type через кастомный метод
-    body_type = django_filters.CharFilter(method='filter_body_type')
+
     category_value = django_filters.CharFilter(field_name='category__value', lookup_expr='icontains',
                                                label='Категория (value)')
 
     class Meta:
         model = Product
-        fields = ['manufacturer', 'model', 'generation', 'modification', 'body_type',  'category_value']
+        fields = ['manufacturer', 'model', 'generation', 'modification',  'category_value']
 
     def filter_body_type(self, queryset, name, value):
         lower_value = value.lower()
