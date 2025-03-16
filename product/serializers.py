@@ -37,11 +37,18 @@ class CategoriesSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 class ProductSerializerHomepage(serializers.ModelSerializer):
-    product_Id = serializers.IntegerField(source='id')
-    average_rating = serializers.SerializerMethodField()
-    comments_count = serializers.IntegerField(source="comment_set.count", read_only=True)
-    image = serializers.SerializerMethodField()
-    promotion_category = serializers.SerializerMethodField()
+    product_Id = serializers.IntegerField(source='id', help_text="id товара")
+    average_rating = serializers.SerializerMethodField(help_text="среднее статистический рейтинг")
+    comments_count = serializers.IntegerField(source="comment_set.count", read_only=True, help_text="количество комментариев")
+    image = serializers.SerializerMethodField(help_text="изображение шин")
+    promotion_category = serializers.SerializerMethodField(help_text="это поля для допалнительного акция еще на что действует кроме данного товара")
+    season = serializers.SerializerMethodField(help_text="Сезонность шин: лето, зима, всесезонные.")
+    is_favorite = serializers.BooleanField(default=False,
+                                           help_text="избранный в homepage который добавляет в избранные если равна к true.")
+    title = serializers.CharField(max_length=100, help_text="названия шин")
+    in_stock = serializers.IntegerField(help_text="количество шины в складе")
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, help_text="цена без учета скидки")
+
 
     class Meta:
         model = Product
@@ -108,12 +115,12 @@ class ProductSerializerll(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id', help_text="id товара")
     average_rating = serializers.SerializerMethodField(help_text="средний статистический рейтинг")
     comments_count = serializers.IntegerField(source="comment_set.count", read_only=True, help_text="количество комментариев")
-    image = serializers.SerializerMethodField(help_text="изображение товара")
+    image = serializers.SerializerMethodField(help_text="изображение шин")
     season = serializers.SerializerMethodField(help_text="Сезонность шин: лето, зима, всесезонные.")
     is_favorite = serializers.BooleanField(default=False, help_text="избранный в каталоге который добавляет в избранные если равна к true.")
     price = serializers.DecimalField(max_digits=10, decimal_places=2, help_text="цена без учета скидки")
-    in_stock = serializers.IntegerField(help_text="количество товара в складе")
-    title = serializers.CharField(max_length=100, help_text="названия товара")
+    in_stock = serializers.IntegerField(help_text="количество шины в складе")
+    title = serializers.CharField(max_length=100, help_text="названия шины")
 
     class Meta:
         model = Product
