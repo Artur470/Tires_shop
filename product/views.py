@@ -32,7 +32,7 @@ from .models import Category
 from .serializers import CategoriesSerializer
 import logging
 from rest_framework.views import APIView
-from .models import Product, Category, Comment
+from .models import Product, Category, Comment, BodyType
 from .serializers import ProductSerializerHomepage, CategoriesSerializer,  FavoriteProductListSerializer  , CommentSerializer, ProductSerializerll
 from rest_framework.response import Response
 from rest_framework import status
@@ -209,6 +209,14 @@ class HomepageView(ListAPIView):
             }
             for product in promotions[:3]
         ]
+        # Получаем все уникальные ID body_type для продуктов
+        ids = Product.objects.values_list('body_type', flat=True).distinct()
+
+        # Получаем значения body_type (например, 'sedan', 'coupe', 'universal') из модели BodyType
+        body_type_values = {bt.id: bt.value for bt in BodyType.objects.all()}
+
+        # Преобразуем ID в соответствующие значения
+        body_type_values_list = [body_type_values.get(id, 'Unknown') for id in ids]
 
         # Доступные фильтры
         filters_data = {
@@ -216,11 +224,10 @@ class HomepageView(ListAPIView):
             "models": list(Product.objects.values_list("model", flat=True).distinct()),
             "generations": list(Product.objects.values_list("generation", flat=True).distinct()),
             "modifications": list(Product.objects.values_list("modification", flat=True).distinct()),
-
-
+            "body_type": body_type_values_list,  # Здесь передаем список значений body_type
         }
 
-        # Создание данных для главной страницы без "favorites"
+        # Создание данных для главной страницы
         homepage_data = {
             "popular": popular_products_data,
             "promotion": promotion_data,
@@ -228,7 +235,6 @@ class HomepageView(ListAPIView):
         }
 
         return Response(homepage_data)
-
     @swagger_auto_schema(
         tags=['Homepage'],
         operation_summary="Добавить товар в избранное",
@@ -566,13 +572,10 @@ class CommentCreateView(generics.CreateAPIView):
         return super().post(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        product_id = self.request.data.get("product_id")  # Теперь используем `product_id`
-        try:
-            product = Product.objects.get(id=product_id)
-        except Product.DoesNotExist:
-            raise ValidationError({"product_id": "Продукт с таким ID не найден."})
-
+        product_id = serializer.validated_data['product_id']
+        product = Product.objects.get(id=product_id)
         serializer.save(product=product)  # Привязываем комментарий к продукту
+
 class ProductCommentListView(generics.ListAPIView):
     """
     Получение всех комментариев к конкретному продукту.

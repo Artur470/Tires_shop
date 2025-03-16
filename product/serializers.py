@@ -92,19 +92,17 @@ class FavoriteProductListSerializer(serializers.ModelSerializer):
         model = Product
         fields = ['product_Id', 'image', 'price', 'season', 'title', 'in_stock', 'is_favorite']
 
-class CommentSerializer(serializers.ModelSerializer):
-    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
 
+class CommentSerializer(serializers.ModelSerializer):
+    product_id = serializers.IntegerField()  # Изменяем на product_id
 
     class Meta:
         model = Comment
-        fields = ['id', 'product', 'comment', 'rating', 'created_at']
+        fields = ['id', 'product_id', 'comment', 'rating', 'created_at']
 
-    def validate_product(self, value):
-        if isinstance(value, Product):  # Если передали объект, берем его ID
-            value = value.id
+    def validate_product_id(self, value):
         if not Product.objects.filter(id=value).exists():
-            raise serializers.ValidationError("Такого продукта не существует")
+            raise serializers.ValidationError("Продукт с таким ID не найден.")
         return value
 class ProductSerializerll(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id', help_text="id товара")

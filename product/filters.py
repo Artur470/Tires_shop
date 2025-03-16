@@ -1,7 +1,10 @@
 import django_filters
-from .models import Product
+from .models import Product, BodyType
 
 # Словарь соответствия: ключ – value (англ.), значение – label (рус.)
+from django.db.models import Q
+import django_filters
+
 BODY_TYPE_CHOICES = {
     "sedan": "Седан",
     "hatchback": "Хэтчбек",
@@ -48,25 +51,28 @@ class ProductFilter(django_filters.FilterSet):
     model = django_filters.CharFilter(field_name="model", lookup_expr="icontains")
     generation = django_filters.CharFilter(field_name="generation", lookup_expr="icontains")
     modification = django_filters.CharFilter(field_name="modification", lookup_expr="icontains")
-    # Фильтрация по body_type через кастомный метод
-
-    category_value = django_filters.CharFilter(field_name='category__value', lookup_expr='icontains',
-                                               label='Категория (value)')
+    body_type = django_filters.CharFilter(field_name='body_type', method='filter_by_body_type', label='Тип кузова')
 
     class Meta:
         model = Product
-        fields = ['manufacturer', 'model', 'generation', 'modification',  'category_value']
+        fields = ['manufacturer', 'model', 'generation', 'modification', 'body_type']
 
-    def filter_body_type(self, queryset, name, value):
-        lower_value = value.lower()
-        # Если значение передано на английском (value), то переводим его в русское название (label)
-        if lower_value in BODY_TYPE_CHOICES:
-            russian_label = BODY_TYPE_CHOICES[lower_value]
-            return queryset.filter(body_type__iexact=russian_label)
-        # Если значение не найдено в словаре, пробуем фильтровать напрямую по переданному значению
-        return queryset.filter(body_type__iexact=value)
+    def filter_by_body_type(self, queryset, name, value):
+        """
+        Фильтруем товары по русскому названию body_type,
+        конвертируя его в английское перед поиском.
+        """
+        value = value.strip().lower()  # Приводим к нижнему регистру
 
+        # Словарь для перевода русского названия в английское
+        reverse_body_type_choices = {rus.lower(): eng for eng, rus in BODY_TYPE_CHOICES.items()}
 
+        # Если значение существует в словаре (это русский текст)
+        if value in reverse_body_type_choices:
+            value = reverse_body_type_choices[value]  # Переводим русское название в английское
+
+        # Фильтруем товары по связанному полю body_type__value
+        return queryset.filter(body_type__value=value)
 
 class ProductFilterall(django_filters.FilterSet):
     # Фильтр по цене

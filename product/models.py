@@ -39,6 +39,13 @@ class Season(models.Model):
         return self.label
 
 
+class BodyType(models.Model):
+    value = models.CharField(max_length=100, unique=True)  # Английское название
+    label = models.CharField(max_length=100)  # Русское название
+
+    def __str__(self):
+        return self.label
+
 class Product(models.Model):
     FUEL_EFFICIENCY_CHOICES = [
         ('A', 'A'),
@@ -77,7 +84,7 @@ class Product(models.Model):
     model = models.CharField(max_length=255)
     generation = models.CharField(max_length=100)
     modification = models.CharField(max_length=255)
-    promotionCategory = models.TextField()
+    promotionCategory = models.TextField(null=True, blank=True)
     width = models.CharField(max_length=10)  # "205"
     fuel_efficiency = models.CharField(max_length=1, choices=FUEL_EFFICIENCY_CHOICES)
     wet_grip = models.CharField(max_length=1, choices=WET_GRIP_CHOICES)
@@ -85,6 +92,7 @@ class Product(models.Model):
     condition = models.ForeignKey('Condition',on_delete=models.CASCADE)
     season = models.ForeignKey('Season', on_delete=models.CASCADE)
     tire_type = models.ForeignKey('TireType', on_delete=models.CASCADE)
+    body_type = models.ForeignKey('BodyType', on_delete=models.CASCADE)
     def __str__(self):
         return f"{self.title} - {self.id}"
 
