@@ -111,6 +111,7 @@ class CommentSerializer(serializers.ModelSerializer):
         if not Product.objects.filter(id=value).exists():
             raise serializers.ValidationError("Продукт с таким ID не найден.")
         return value
+
 class ProductSerializerll(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id', help_text="id товара")
     average_rating = serializers.SerializerMethodField(help_text="средний статистический рейтинг")
@@ -153,3 +154,37 @@ class ProductSerializerll(serializers.ModelSerializer):
             return 0.0
         total_rating = sum(comment.rating for comment in comments)
         return round_to_half(total_rating / len(comments))
+
+
+class ProductDetailSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+    comments = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
+    season_label = serializers.CharField(source="season.label", read_only=True)
+    condition_label = serializers.CharField(source="condition.label", read_only=True)
+    tire_type_label = serializers.CharField(source="tire_type.label", read_only=True)
+    body_type_label = serializers.CharField(source="body_type.label", read_only=True)
+    category_label = serializers.CharField(source="category.label", read_only=True)
+    category_value = serializers.CharField(source="category.value", read_only=True)
+
+    class Meta:
+        model = Product
+        fields = [
+            "id", "title", "manufacturer", "model", "price", "season_label", "condition_label",
+            "tire_type_label", "body_type_label", "category_label", "category_value", "is_favorite",
+            "width", "profile", "diameter", "speed_index", "load_index", "load_index_for_double",
+            "image_url", "comments", "average_rating", "model_description"
+        ]
+
+    def get_image_url(self, obj):
+        return obj.image.url if obj.image else None
+
+    def get_comments(self, obj):
+        return [{"comment": c.comment, "rating": c.rating, "created_at": c.created_at} for c in obj.comment_set.all()]
+
+    def get_average_rating(self, obj):
+        comments = obj.comment_set.all()
+        if not comments:
+            return 0.0
+        total_rating = sum(comment.rating for comment in comments)
+        return round(total_rating / len(comments), 1)

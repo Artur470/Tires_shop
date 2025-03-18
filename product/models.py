@@ -11,14 +11,6 @@ class Condition(models.Model):
     def __str__(self):
         return self.label
 
-class Manufacturer(models.Model):
-    label = models.CharField(max_length=100, unique=True)  # "Michelin"
-    value = models.CharField(max_length=100, unique=True)  # "michelin"
-
-    def __str__(self):
-        return self.label
-
-
 
 
 
@@ -72,7 +64,7 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     promotion = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     promotion_end_date = models.DateTimeField(null=True, blank=True)
-    description = models.TextField()
+    model_description = models.TextField()
     in_stock = models.IntegerField()
     profile = models.CharField(max_length=50)
     diameter = models.CharField(max_length=100)
@@ -80,7 +72,7 @@ class Product(models.Model):
     load_index = models.CharField(max_length=500)
     load_index_for_double = models.CharField(max_length=200)
     is_favorite = models.BooleanField(default=False)
-    manufacturer = models.CharField(max_length=200)
+    manufacturer = models.CharField(max_length=100)
     model = models.CharField(max_length=255)
     generation = models.CharField(max_length=100)
     modification = models.CharField(max_length=255)
@@ -93,6 +85,8 @@ class Product(models.Model):
     season = models.ForeignKey('Season', on_delete=models.CASCADE)
     tire_type = models.ForeignKey('TireType', on_delete=models.CASCADE)
     body_type = models.ForeignKey('BodyType', on_delete=models.CASCADE)
+    runflat =  models.BooleanField(default=False)
+    off_road = models.BooleanField(default=False)
     def __str__(self):
         return f"{self.title} - {self.id}"
 
@@ -119,3 +113,7 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"Comment for {self.product.name} - {self.rating}★"
+
+
+
+
