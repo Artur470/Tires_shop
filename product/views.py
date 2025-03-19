@@ -643,58 +643,219 @@ class CustomPagination(PageNumberPagination):
 
         return pages
 
-
-
 class ProductListView(generics.ListAPIView):
     """
     Получение списка всех товаров.
-    Этот эндпоинт поддерживает пагинацию, фильтрацию и поиск по названию товара.
+    Этот эндпоинт теперь применяет фильтрацию, сохраненную в /product/filter/.
     """
     serializer_class = ProductSerializerll
     permission_classes = [AllowAny]
     pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_class = ProductFilter
+    filterset_class = ProductFilterall
     search_fields = ['title']
     ordering_fields = ['price']
     ordering = ['id']
 
     def get_queryset(self):
         """
-        Получаем все товары, с учетом фильтрации и поиска.
-        Если в сессии есть отфильтрованные товары, применяем фильтрацию по их ID.
+        Получаем отфильтрованные товары, если они были сохранены в сессии.
         """
-        queryset = Product.objects.all()  # Начинаем с всех товаров
+        queryset = Product.objects.all()
+        product_filters = self.request.session.get('product_filters')
+        if product_filters:
+            queryset = ProductFilterall(product_filters, queryset=queryset).qs
+        return queryset
 
-        # Проверяем, есть ли отфильтрованные товары в сессии
-        filtered_product_ids = self.request.session.get('filtered_product_ids')
-        if filtered_product_ids:
-            # Если есть, фильтруем товары по сохраненным ID
-            queryset = queryset.filter(id__in=filtered_product_ids)
-
-        # Применяем фильтрацию и поиск с использованием фильтра и поиска
-        return self.filter_queryset(queryset)
-
+    @swagger_auto_schema(
+        operation_summary="Получение списка всех товаров",
+        operation_description="Этот эндпоинт возвращает список товаров, применяя сохраненные фильтры из `/product/filter/`. Поддерживает пагинацию, поиск по названию и сортировку по цене.",
+        manual_parameters=[
+            openapi.Parameter(
+                name="search",
+                in_=openapi.IN_QUERY,
+                description="Поиск товаров по названию",
+                type=openapi.TYPE_STRING
+            ),
+            openapi.Parameter(
+                name="ordering",
+                in_=openapi.IN_QUERY,
+                description="Поле для сортировки (пример: `price`, `-price`)",
+                type=openapi.TYPE_STRING
+            ),
+            openapi.Parameter(
+                name="page",
+                in_=openapi.IN_QUERY,
+                description="Номер страницы (для пагинации)",
+                type=openapi.TYPE_INTEGER
+            ),
+            openapi.Parameter(
+                name="page_size",
+                in_=openapi.IN_QUERY,
+                description="Количество элементов на странице (для пагинации)",
+                type=openapi.TYPE_INTEGER
+            )
+        ],
+        responses={
+            200: openapi.Response(
+                description="Успешный ответ со списком товаров",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "total_pages": openapi.Schema(
+                            type=openapi.TYPE_INTEGER,
+                            description="Общее количество страниц"
+                        ),
+                        "current_page": openapi.Schema(
+                            type=openapi.TYPE_INTEGER,
+                            description="Текущая страница"
+                        ),
+                        "has_next": openapi.Schema(
+                            type=openapi.TYPE_BOOLEAN,
+                            description="Есть ли следующая страница"
+                        ),
+                        "has_previous": openapi.Schema(
+                            type=openapi.TYPE_BOOLEAN,
+                            description="Есть ли предыдущая страница"
+                        ),
+                        "next_page": openapi.Schema(
+                            type=openapi.TYPE_INTEGER,
+                            nullable=True,
+                            description="Номер следующей страницы, если есть"
+                        ),
+                        "previous_page": openapi.Schema(
+                            type=openapi.TYPE_INTEGER,
+                            nullable=True,
+                            description="Номер предыдущей страницы, если есть"
+                        ),
+                        "pages": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(type=openapi.TYPE_INTEGER),
+                            description="Список доступных страниц"
+                        ),
+                        "products": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    "product_Id": openapi.Schema(
+                                        type=openapi.TYPE_INTEGER,
+                                        description="ID товара"
+                                    ),
+                                    "image": openapi.Schema(
+                                        type=openapi.TYPE_STRING,
+                                        format=openapi.FORMAT_URI,
+                                        description="Ссылка на изображение товара"
+                                    ),
+                                    "average_rating": openapi.Schema(
+                                        type=openapi.TYPE_NUMBER,
+                                        format=openapi.FORMAT_FLOAT,
+                                        description="Средний рейтинг товара"
+                                    ),
+                                    "comments_count": openapi.Schema(
+                                        type=openapi.TYPE_INTEGER,
+                                        description="Количество комментариев к товару"
+                                    ),
+                                    "title": openapi.Schema(
+                                        type=openapi.TYPE_STRING,
+                                        description="Название товара"
+                                    ),
+                                    "in_stock": openapi.Schema(
+                                        type=openapi.TYPE_INTEGER,
+                                        description="Количество товара в наличии"
+                                    ),
+                                    "price": openapi.Schema(
+                                        type=openapi.TYPE_STRING,
+                                        description="Цена товара в строковом формате"
+                                    ),
+                                    "is_favorite": openapi.Schema(
+                                        type=openapi.TYPE_BOOLEAN,
+                                        description="Флаг избранного товара"
+                                    ),
+                                    "season": openapi.Schema(
+                                        type=openapi.TYPE_STRING,
+                                        description="Сезонность товара  winter(зима), summer(лето), all_season(все сезоны)"
+                                    )
+                                }
+                            )
+                        )
+                    }
+                )
+            ),
+            400: "Ошибка в запросе",
+            500: "Внутренняя ошибка сервера"
+        }
+    )
     def get(self, request, *args, **kwargs):
         """
-        Обрабатывает запрос на получение списка товаров с пагинацией и фильтрацией.
+        Обрабатывает GET-запрос и применяет фильтрацию.
         """
-        # Получаем все товары с применением фильтрации и поиска
         products = self.get_queryset()
-
-        # Применяем пагинацию
         page = self.paginate_queryset(products)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
-        # Если пагинация не требуется, возвращаем весь список товаров
         serializer = self.get_serializer(products, many=True)
         return Response({
             'total_count': products.count(),
             'results': serializer.data
         })
 
+    @swagger_auto_schema(
+        operation_summary="Добавление или удаление товара из избранного",
+        operation_description="Этот эндпоинт позволяет добавить товар в избранное, если он еще не в нем, или удалить его, если он уже в избранном. Для этого нужно передать `product_id` в теле запроса.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["product_id"],
+            properties={
+                "product_id": openapi.Schema(
+                    type=openapi.TYPE_INTEGER,
+                    description="ID товара, который необходимо добавить в избранное или удалить из него"
+                )
+            }
+        ),
+        responses={
+            200: openapi.Response(
+                description="Успешное обновление товара",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "product_id": openapi.Schema(
+                            type=openapi.TYPE_INTEGER,
+                            description="ID товара"
+                        ),
+                        "is_favorite": openapi.Schema(
+                            type=openapi.TYPE_BOOLEAN,
+                            description="Флаг, показывающий, находится ли товар в избранном"
+                        )
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Ошибка, если не был передан `product_id` в запросе"
+            ),
+            404: openapi.Response(
+                description="Ошибка, если товар с указанным `product_id` не найден"
+            )
+        }
+    )
+    def post(self, request):
+        """
+        Обрабатывает POST-запрос для добавления/удаления товара из избранного.
+        """
+        product_id = request.data.get("product_id")  # Получаем ID из тела запроса
+        if not product_id:
+            return Response({"error": "product_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        product = get_object_or_404(Product, id=product_id)
+        product.is_favorite = not product.is_favorite  # Переключаем флаг
+        product.save()
+
+        return Response(
+            {"product_id": product.id, "is_favorite": product.is_favorite},
+            status=status.HTTP_200_OK
+        )
 class ProductFilterView(generics.ListAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializerll
@@ -705,43 +866,37 @@ class ProductFilterView(generics.ListAPIView):
         """
         Фильтрация товаров и сохранение их ID в сессии.
         """
-        # Фильтрация продуктов на основе запроса
-        filtered_products = ProductFilter(request.GET, queryset=self.queryset).qs
+        # ✅ Применяем фильтр
+        filtered_products = ProductFilterall(request.GET, queryset=self.queryset).qs
         product_ids = list(filtered_products.values_list('id', flat=True))
 
-        # Сохраняем отфильтрованные товары в сессии
-        request.session['filtered_product_ids'] = product_ids
+        # ✅ Сохраняем отфильтрованные товары в сессии
+        request.session["filtered_product_ids"] = product_ids
+        request.session["product_filters"] = request.GET.dict()
         request.session.modified = True
+        product_filters = self.request.session.get("product_filters")
 
-        # Список доступных фильтров
+
+        # ✅ Список доступных фильтров
         filter_data = {
-            # Списки фильтров
             "seasons": Product.objects.values_list("season__value", flat=True).distinct(),
             "manufacturers": Product.objects.values_list("manufacturer", flat=True).distinct(),
             "tire_types": Product.objects.values_list("tire_type__value", flat=True).distinct(),
             "conditions": Product.objects.values_list("condition__value", flat=True).distinct(),
             "fuel_efficiency": dict(Product.FUEL_EFFICIENCY_CHOICES),
             "wet_grip": dict(Product.WET_GRIP_CHOICES),
-
-            # Фильтры по числовым значениям
             "min_price": Product.objects.aggregate(min_price=Min("price"))["min_price"],
             "max_price": Product.objects.aggregate(max_price=Max("price"))["max_price"],
             "min_load_index": Product.objects.aggregate(min_load=Min("load_index"))["min_load"],
             "max_load_index": Product.objects.aggregate(max_load=Max("load_index"))["max_load"],
             "min_noise_level": Product.objects.aggregate(min_noise=Min("external_noise_level"))["min_noise"],
             "max_noise_level": Product.objects.aggregate(max_noise=Max("external_noise_level"))["max_noise"],
-
-            # Фильтры по обычным полям
             "widths": Product.objects.values_list("width", flat=True).distinct(),
             "profiles": Product.objects.values_list("profile", flat=True).distinct(),
             "diameters": Product.objects.values_list("diameter", flat=True).distinct(),
             "speed_indexes": Product.objects.values_list("speed_index", flat=True).distinct(),
-
-            # Фильтры по boolean
             "runflat": Product.objects.values_list("runflat", flat=True).distinct(),
             "off_road": Product.objects.values_list("off_road", flat=True).distinct(),
-
-            # Преобразуем значения promotion в булевы (True/False)
             "promotion": Product.objects.annotate(
                 is_promotion_active=Case(
                     When(promotion__gt=0, then=Value(True)),
@@ -751,11 +906,11 @@ class ProductFilterView(generics.ListAPIView):
             ).values_list('is_promotion_active', flat=True).distinct()
         }
 
-        # Возвращаем ID отфильтрованных товаров и доступные фильтры
         return Response({
-            'filtered_product_ids': product_ids,
-            'filter_data': filter_data
-        })
+            "message": "Фильтрация сохранена",
+            "filtered_product_ids": product_ids,  # ✅ Оставил эту часть
+            "filter_data": filter_data  # ✅ Оставил эту часть
+        }, status=status.HTTP_200_OK)
 
 
 class ProductDetailView(generics.RetrieveAPIView):
@@ -892,9 +1047,9 @@ class ProductDetailView(generics.RetrieveAPIView):
 
         # Возвращаем данные о продукте
         return Response({
-            "title": data.get("title", product.title),
             "product": {
                 "id": product.id,
+                "title": data.get("title", product.title),
                 "manufacturer": product.manufacturer if product.manufacturer else None,
                 "model": product.model,
                 "season": product.season.label if product.season else None,

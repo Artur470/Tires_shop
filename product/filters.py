@@ -76,7 +76,7 @@ class ProductFilter(django_filters.FilterSet):
 
 class ProductFilterall(django_filters.FilterSet):
     # Для фильтрации по season, manufacturer, tire_type и другим ForeignKey полям
-    season = django_filters.CharFilter(field_name='season__value', lookup_expr='exact')
+    season = django_filters.CharFilter(method="filter_season")
     manufacturer = django_filters.CharFilter(field_name='manufacturer', lookup_expr='exact')
     tire_type = django_filters.CharFilter(field_name='tire_type__value', lookup_expr='exact')
     condition = django_filters.CharFilter(field_name='condition__value', lookup_expr='exact')
@@ -102,6 +102,7 @@ class ProductFilterall(django_filters.FilterSet):
     # Кастомный фильтр для поля promotion (проверка на наличие акции)
     promotion = django_filters.BooleanFilter(field_name='promotion', method='filter_promotion')
 
+
     class Meta:
         model = Product
         fields = ['season', 'manufacturer', 'tire_type', 'condition', 'min_price', 'max_price',
@@ -119,3 +120,9 @@ class ProductFilterall(django_filters.FilterSet):
         elif value is False:
             return queryset.filter(promotion__lte=0)  # Только товары без акции
         return queryset
+
+    def filter_season(self, queryset, name, value):
+        """ Фильтрация товаров по сезону """
+        if value == "all_season":
+            return queryset.filter(season__value__in=["summer", "winter", "all_season"])
+        return queryset.filter(season__value=value)  # Обычная фильтрация
