@@ -24,6 +24,7 @@ schema_view = get_schema_view(
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('product/', include("product.urls")),
+    path('users/', include("users.urls")),
 
     # Swagger
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='swagger-docs'),

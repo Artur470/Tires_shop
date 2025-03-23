@@ -724,7 +724,7 @@ class ProductListView(generics.ListAPIView):
     pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = ProductFilterall
-    search_fields = ['title']
+    search_fields = ['title', 'manufacturer', 'model']
     ordering_fields = ['price']
     ordering = ['id']
 

@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
+from datetime import timedelta
 import dj_database_url
 from pathlib import Path
 from dotenv import load_dotenv
@@ -58,6 +59,7 @@ INSTALLED_APPS = [
     'drf_yasg',
     "corsheaders",
     'django_filters',
+    'rest_framework_simplejwt',
 ]
 
 MIDDLEWARE = [
@@ -125,9 +127,6 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
-    ],
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',  # Для фильтрации
         'rest_framework.filters.SearchFilter',  # Для поиска
@@ -167,7 +166,13 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(weeks=1),  # 1 неделя для access token
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),  # 30 дней для refresh token
+    'ROTATE_REFRESH_TOKENS': False,  # Не обновлять refresh token
+    'BLACKLIST_AFTER_ROTATION': False,  # Не чернить токены после ротации
+    'UPDATE_LAST_LOGIN': False,  # Не обновлять last login для пользователей
+}
 SWAGGER_SETTINGS = {
     'SECURITY_DEFINITIONS': None,  # Отключает авторизацию
     'USE_SESSION_AUTH': False,  # Отключает привязку к сессии Django Admin
