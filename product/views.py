@@ -59,7 +59,77 @@ from .filters import ProductFilterall
 from django_filters.rest_framework import DjangoFilterBackend
 logger = logging.getLogger(__name__)
 
+import logging
+logger = logging.getLogger(__name__)
 
+
+
+class ProductAutocompleteSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    manufacturer = serializers.CharField()
+    model = serializers.CharField()
+
+class ProductAutocompleteView(APIView):
+    """
+    Эндпоинт для живого поиска (автодополнение).
+    """
+    @swagger_auto_schema(
+        tags=['Product'],
+        operation_summary="Автодополнение для товаров",
+        operation_description="Этот эндпоинт предоставляет автодополнение для товаров, включая их название, производителя и модель.",
+        manual_parameters=[
+            openapi.Parameter(
+                'q',  # имя параметра
+                openapi.IN_QUERY,  # где будет использоваться параметр (в запросе)
+                description='Текст для поиска товаров. Может быть частью названия товара, производителя или модели.',
+                required=True,  # параметр обязательный
+                type=openapi.TYPE_STRING,  # тип параметра
+                example='giog'  # пример значения параметра
+            )
+        ],
+        responses={
+            200: openapi.Response(
+                description='Успешный ответ с результатами автодополнения.',
+                schema=ProductAutocompleteSerializer(many=True)
+            ),
+            400: openapi.Response(
+                description='Ошибка запроса, например, отсутствует параметр "q".'
+            ),
+            404: openapi.Response(
+                description='Товары не найдены, соответствующие запросу.'
+            )
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        query = request.GET.get('q', '').strip()
+
+        if query:
+            products = Product.objects.filter(
+                Q(title__icontains=query) |
+                Q(manufacturer__icontains=query) |
+                Q(model__icontains=query)
+            ).only('id', 'title', 'manufacturer', 'model')
+
+            # Сортировка: сначала по title, потом по manufacturer, потом по model
+            products = sorted(
+                products,
+                key=lambda p: (
+                    (query.lower() in p.title.lower(), 2),
+                    (query.lower() in p.manufacturer.lower(), 1),
+                    (query.lower() in p.model.lower(), 0)
+                ),
+                reverse=True
+            )
+
+            return Response([{
+                "id": p.id,
+                "title": p.title,
+                "manufacturer": p.manufacturer,
+                "model": p.model
+            } for p in products[:10]])
+
+        return Response([])
 
 class HomepageView(ListAPIView):
     """
@@ -91,7 +161,8 @@ class HomepageView(ListAPIView):
     serializer_class = ProductSerializerHomepage
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = ProductFilter
-    search_fields = ['title', ]
+    search_fields = ['title', 'manufacturer', 'model']
+
 
     @swagger_auto_schema(
         tags=['Homepage'],

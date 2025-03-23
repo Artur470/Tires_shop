@@ -1,6 +1,14 @@
 
 from django.urls import path
-from .views import CategoriesListView,HomepageView,FavoriteProduct, ProductCommentListView, CommentCreateView, ProductListView, ProductFilterView, ProductDetailView
+from .views import (CategoriesListView,
+                    HomepageView,
+                    FavoriteProduct,
+                    ProductCommentListView,
+                    CommentCreateView,
+                    ProductListView,
+                    ProductFilterView,
+                    ProductDetailView,
+                    ProductAutocompleteView)
 urlpatterns = [
 
 
@@ -12,6 +20,7 @@ urlpatterns = [
     path('comment/', CommentCreateView.as_view(), name='create_comment'),
     path('<int:product_id>/comments/', ProductCommentListView.as_view(), name='product_comments'),
     path('filter/', ProductFilterView.as_view(), name='product-filter'),
+    path('autocomplete/', ProductAutocompleteView.as_view(), name='product-autocomplete'),
 
 
 
