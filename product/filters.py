@@ -124,5 +124,5 @@ class ProductFilterall(django_filters.FilterSet):
     def filter_season(self, queryset, name, value):
         """ Фильтрация товаров по сезону """
         if value == "all_season":
-            return queryset.filter(season__value__in=["summer", "winter", "all_season"])
-        return queryset.filter(season__value=value)  # Обычная фильтрация
+            return queryset.filter(season__value="all_season")  # Фильтруем только товары с сезоном "все сезоны"
+        return queryset.filter(season__value=value)  # Обычная фильтрация для других сезонов

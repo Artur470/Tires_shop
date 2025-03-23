@@ -136,7 +136,7 @@ class ProductSerializerll(serializers.ModelSerializer):
 
     def get_season(self, obj):
         if obj.season:
-            return obj.season.label  # Возвращаем значение label, а не id
+            return obj.season.value  # Возвращаем значение label, а не id
         return None
 
     def get_image(self, obj):
