@@ -3,6 +3,7 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from cloudinary.models import CloudinaryField
 # Create your models here.
+from decimal import Decimal
 
 class Condition(models.Model):
     label = models.CharField(max_length=100, unique=True)  # "Новый"
@@ -87,6 +88,9 @@ class Product(models.Model):
     body_type = models.ForeignKey('BodyType', on_delete=models.CASCADE)
     runflat =  models.BooleanField(default=False)
     off_road = models.BooleanField(default=False)
+    warranty = models.CharField(max_length=100, blank=True, null=True)  # Поле гарантии
+    main_characteristics = models.JSONField(default=list)
+
     def __str__(self):
         return f"{self.title} - {self.id}"
 
@@ -103,17 +107,28 @@ class Category(models.Model):
 
     def get_value(self):
         return self.value  # Возвращает английский текст
-
-
 class Comment(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    RATING_CHOICES = [
+        (Decimal("1.0"), "1 ★"),
+        (Decimal("1.5"), "1.5 ★"),
+        (Decimal("2.0"), "2 ★"),
+        (Decimal("2.5"), "2.5 ★"),
+        (Decimal("3.0"), "3 ★"),
+        (Decimal("3.5"), "3.5 ★"),
+        (Decimal("4.0"), "4 ★"),
+        (Decimal("4.5"), "4.5 ★"),
+        (Decimal("5.0"), "5 ★"),
+    ]
+
+    product = models.ForeignKey("Product", on_delete=models.CASCADE)
     comment = models.TextField()
-    rating = models.FloatField(validators=[MinValueValidator(1.0), MaxValueValidator(5.0)])  # Рейтинг от 1 до 5
-    created_at = models.DateTimeField(auto_now_add=True)  # Дата создания
+    rating = models.DecimalField(
+        max_digits=2,
+        decimal_places=1,
+        choices=RATING_CHOICES,
+        validators=[MinValueValidator(Decimal("1.0")), MaxValueValidator(Decimal("5.0"))]
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Comment for {self.product.name} - {self.rating}★"
-
-
-
-

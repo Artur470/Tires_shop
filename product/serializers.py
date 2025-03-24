@@ -76,20 +76,12 @@ class ProductSerializerHomepage(serializers.ModelSerializer):
         return obj.comments.count()
 
     def get_average_rating(self, obj):
-        return obj.average_rating
-
-
-
-    def get_average_rating(self, obj):
-
         comments = obj.comment_set.all()
         from .utils import round_to_half
         if not comments:
             return 0.0
         total_rating = sum(comment.rating for comment in comments)
         return round_to_half(total_rating / len(comments))
-
-
 
 
 class FavoriteProductListSerializer(serializers.ModelSerializer):
@@ -158,33 +150,29 @@ class ProductSerializerll(serializers.ModelSerializer):
 
 class ProductDetailSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
-    comments = serializers.SerializerMethodField()
+    comments = CommentSerializer(many=True, read_only=True)
     average_rating = serializers.SerializerMethodField()
-    season_label = serializers.CharField(source="season.label", read_only=True)
-    condition_label = serializers.CharField(source="condition.label", read_only=True)
-    tire_type_label = serializers.CharField(source="tire_type.label", read_only=True)
-    body_type_label = serializers.CharField(source="body_type.label", read_only=True)
-    category_label = serializers.CharField(source="category.label", read_only=True)
-    category_value = serializers.CharField(source="category.value", read_only=True)
+    season_value = serializers.CharField(source="season.value", read_only=True)
+    is_favorite = serializers.BooleanField(default=False,
+                                           help_text="избранный в каталоге который добавляет в избранные если равна к true.")
+    warranty = serializers.CharField(allow_blank=True, required=False)
+    main_characteristics = serializers.JSONField()
+    in_stock = serializers.IntegerField(help_text="количество шины в складе")
 
     class Meta:
         model = Product
-        fields = [
-            "id", "title", "manufacturer", "model", "price", "season_label", "condition_label",
-            "tire_type_label", "body_type_label", "category_label", "category_value", "is_favorite",
-            "width", "profile", "diameter", "speed_index", "load_index", "load_index_for_double",
-            "image_url", "comments", "average_rating", "model_description"
-        ]
+        fields = ["id", "title", "manufacturer", "in_stock", "model", "price", "season", "is_favorite", "width",
+                  "profile", "diameter", "speed_index", "load_index", "load_index_for_double", "image_url", "comments",
+                  "average_rating", "model_description", "season_value", "warranty", "main_characteristics"]
 
     def get_image_url(self, obj):
         return obj.image.url if obj.image else None
 
-    def get_comments(self, obj):
-        return [{"comment": c.comment, "rating": c.rating, "created_at": c.created_at} for c in obj.comment_set.all()]
-
     def get_average_rating(self, obj):
+        """Вычисляет средний рейтинг продукта на лету."""
         comments = obj.comment_set.all()
+        from .utils import round_to_half
         if not comments:
             return 0.0
         total_rating = sum(comment.rating for comment in comments)
-        return round(total_rating / len(comments), 1)
+        return round_to_half(total_rating / len(comments))

@@ -846,6 +846,11 @@ class ProductListView(generics.ListAPIView):
                                     "season": openapi.Schema(
                                         type=openapi.TYPE_STRING,
                                         description="Сезонность товара  winter(зима), summer(лето), all_season(все сезоны)"
+                                                    "season"
+                                    ),
+                                    "total_count" : openapi.Schema(
+                                        type=openapi.TYPE_INTEGER,
+                                        description="общая количество товаров"
                                     )
                                 }
                             )
@@ -862,14 +867,18 @@ class ProductListView(generics.ListAPIView):
         Обрабатывает GET-запрос и применяет фильтрацию.
         """
         products = self.get_queryset()
+        total_count = products.count()  # Подсчет всех товаров
+
         page = self.paginate_queryset(products)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            response = self.get_paginated_response(serializer.data)
+            response.data["total_count"] = total_count  # Добавляем total_count в ответ с пагинацией
+            return response
 
         serializer = self.get_serializer(products, many=True)
         return Response({
-            'total_count': products.count(),
+            'total_count': total_count,  # Добавляем общее количество товаров
             'results': serializer.data
         })
 
@@ -983,92 +992,39 @@ class ProductFilterView(generics.ListAPIView):
             "filter_data": filter_data  # ✅ Оставил эту часть
         }, status=status.HTTP_200_OK)
 
-
 class ProductDetailView(generics.RetrieveAPIView):
     queryset = Product.objects.all()
-    serializer_class = ProductDetailSerializer  # Сериализатор для вывода деталей продукта
+    serializer_class = ProductDetailSerializer # ✅ Основной сериализатор
     permission_classes = [AllowAny]
 
     def get_serializer_class(self):
-        """🔹 Для POST-запроса используем пустой сериализатор, чтобы убрать форму."""
+
         if self.request.method == "POST":
-            return serializers.Serializer  # ✅ Используем встроенный пустой сериализатор
+            return serializers.Serializer
         return super().get_serializer_class()
 
-    @swagger_auto_schema(
-        operation_summary="Получение подробной информации о товаре",
-        operation_description="Возвращает информацию о товаре по его ID, включая описание, цену, модель, производителя, сезон и похожие товары.",
-        responses={
-            200: openapi.Response(
-                description="Информация о товаре",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'title': openapi.Schema(type=openapi.TYPE_STRING, description="Название товара"),
-                        'product': openapi.Schema(
-                            type=openapi.TYPE_OBJECT,
-                            properties={
-                                'id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID товара"),
-                                'manufacturer': openapi.Schema(type=openapi.TYPE_STRING,
-                                                               description="Производитель товара"),
-                                'model': openapi.Schema(type=openapi.TYPE_STRING, description="Модель товара"),
-                                'season': openapi.Schema(type=openapi.TYPE_STRING, description="Сезон товара"),
-                                'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN,
-                                                              description="Статус избранного товара"),
-                                'width': openapi.Schema(type=openapi.TYPE_STRING, description="Ширина товара"),
-                                'profile': openapi.Schema(type=openapi.TYPE_STRING, description="Профиль товара"),
-                                'diameter': openapi.Schema(type=openapi.TYPE_STRING, description="Диаметр товара"),
-                                'speed_index': openapi.Schema(type=openapi.TYPE_STRING,
-                                                              description="Скоростной индекс товара"),
-                                'load_index': openapi.Schema(type=openapi.TYPE_STRING,
-                                                             description="Нагрузочный индекс товара"),
-                                'load_index_for_double': openapi.Schema(type=openapi.TYPE_STRING,
-                                                                        description="Нагрузочный индекс для двойных шин"),
-                                'image_url': openapi.Schema(type=openapi.TYPE_STRING,
-                                                            description="Ссылка на изображение товара"),
-                                'average_rating': openapi.Schema(type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT,
-                                                                 description="Средний рейтинг товара"),
-                            }
-                        ),
-                        'model_description': openapi.Schema(type=openapi.TYPE_STRING,
-                                                            description="Описание модели товара"),
-                        'price': openapi.Schema(type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT,
-                                                description="Цена товара"),
-                        'promotion': openapi.Schema(type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT,
-                                                    description="Цена со скидкой"),
-                        'total_price': openapi.Schema(type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT,
-                                                      description="Общая цена товара с учетом количества"),
-                        'quantity': openapi.Schema(type=openapi.TYPE_INTEGER, description="Количество товара"),
-                        'similar_products': openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Items(
-                                type=openapi.TYPE_OBJECT,
-                                properties={
-                                    'id': openapi.Schema(type=openapi.TYPE_INTEGER),
-                                    'title': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'price': openapi.Schema(type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT),
-                                    'rating': openapi.Schema(type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT),
-                                    'quantity': openapi.Schema(type=openapi.TYPE_INTEGER),
-                                    'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                                    'season': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'image_url': openapi.Schema(type=openapi.TYPE_STRING)
-                                }
-                            ),
-                            description="Похожие товары"
-                        )
-                    }
-                )
-            ),
-            400: "Некорректные данные",
-            404: "Товар не найден"
-        }
-    )
     def retrieve(self, request, *args, **kwargs):
         product = self.get_object()
         serializer = self.get_serializer(product)
         data = serializer.data
 
-        # Фильтрация похожих товаров
+        session_price = request.session.get(f"product_{product.id}_price")
+        session_in_stock = request.session.get(f"product_{product.id}_in_stock")
+        session_promotion = request.session.get(f"product_{product.id}_promotion")
+        request.session.modified = True
+
+        price = session_price if session_price is not None else float(
+            product.promotion if product.promotion else product.price
+        )
+        # ✅ Определяем promotion
+        promotion = session_promotion if session_promotion is not None else (
+            float(product.promotion) if product.promotion else None
+        )
+        # ✅ Определяем `in_stock`
+        in_stock = session_in_stock if session_in_stock is not None else product.in_stock
+
+
+
         filter_fields = [
             Q(manufacturer=product.manufacturer),
             Q(model=product.model),
@@ -1076,90 +1032,60 @@ class ProductDetailView(generics.RetrieveAPIView):
             Q(tire_type=product.tire_type)
         ]
 
+        characteristics_data = product.main_characteristics
+
         strict_filters = Q()
         for combo in combinations(filter_fields, 3):
-            strict_filters |= combo[0] & combo[1] & combo[2]  # Добавляем условие с 3 совпадениями
+            strict_filters |= combo[0] & combo[1] & combo[2]
 
         similar_products = Product.objects.filter(strict_filters).exclude(id=product.id)
 
-        # Если похожих товаров меньше 5, расширяем фильтр по цене
-        if similar_products.count() < 5:
-            # Используем Decimal для работы с числами
-            price_range = (product.price * Decimal('0.9'), product.price * Decimal('1.1'))
 
-            # Фильтруем продукты с учетом диапазона цен
-            similar_products = Product.objects.filter(strict_filters, price__range=price_range).exclude(id=product.id)[ :5]
-        # Сериализуем данные похожих товаров
+        if similar_products.count() < 5:
+            price_range = (product.price * Decimal('0.9'), product.price * Decimal('1.1'))
+            similar_products = Product.objects.filter(strict_filters, price__range=price_range).exclude(id=product.id)[:5]
+
         similar_products_serialized = ProductDetailSerializer(similar_products, many=True).data
 
-        # Подготовка списка похожих товаров
+
         similar_products_data = [
             {
                 "id": p["id"],
                 "title": p["title"],
                 "price": p["price"],
                 "rating": p.get("average_rating", 0.0),
-                "quantity": p.get("quantity", None),
-                "is_favorite": p["is_favorite"],
-                "season": p["season_label"],
+                "in_stock": p.get("in_stock"),
+                "favorite": p["is_favorite"],
+                "season": p["season_value"],
                 "image_url": p.get("image_url", None),
             }
             for p in similar_products_serialized
         ]
 
-        # Получаем количество из сессии (по умолчанию 1)
-        session_quantity = request.session.get(f"product_{product.id}_quantity", 1)
-
-        # Выбираем цену: promotion или обычную
-        price = product.promotion if product.promotion else product.price
-
-        # Вычисляем общую цену
-        total_price = price * session_quantity
-
-        # Возвращаем данные о продукте
         return Response({
-            "product": {
-                "id": product.id,
-                "title": data.get("title", product.title),
-                "manufacturer": product.manufacturer if product.manufacturer else None,
-                "model": product.model,
-                "season": product.season.label if product.season else None,
-                "is_favorite": product.is_favorite,
-                "width": product.width,
-                "profile": product.profile,
-                "diameter": product.diameter,
-                "speed_index": product.speed_index,
-                "load_index": product.load_index,
-                "load_index_for_double": product.load_index_for_double,
-                "image_url": data.get("image_url", None),
-                "average_rating": data.get("average_rating", 0.0),
-            },
+            "characteristics": characteristics_data,
+            "title": data.get("title", product.title),
+            "id": product.id,
+            "manufacturer": product.manufacturer,
+            "model": product.model,
+            "season": product.season.value if product.season else None,
+            "is_favorite": product.is_favorite,
+            "width": product.width,
+            "profile": product.profile,
+            "diameter": product.diameter,
+            "speed_index": product.speed_index,
+            "load_index": product.load_index,
+            "load_index_for_double": product.load_index_for_double,
+            "image_url": data.get("image_url", None),
+            "promotion": promotion,
+            "average_rating": data.get("average_rating", 0.0),
             "model_description": data.get("model_description", ""),
-            "price": product.price,
-            "promotion": product.promotion if product.promotion else None,
-            "total_price": total_price,
-            "quantity": session_quantity,
-            "similar_products": similar_products_data,
+            "price": price,  # ✅ Теперь это умноженная цена из PUT
+            "in_stock": in_stock,  # ✅ in_stock тоже обновляется
+            "warranty": data.get("warranty") or "",
+            "similar_products": similar_products_data,  # ✅ Теперь тут список похожих товаров
         })
 
-    @swagger_auto_schema(
-        operation_summary="Переключение избранного товара",
-        operation_description="Переключает статус товара в избранном на противоположный.",
-        responses={
-            200: openapi.Response(
-                description="Новый статус товара",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID товара"),
-                        'favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN,
-                                                   description="Новый статус товара как избранного")
-                    }
-                )
-            ),
-            400: "Ошибка обработки запроса"
-        }
-    )
     def post(self, request, *args, **kwargs):
         """🔄 Переключение избранного"""
         product = self.get_object()
@@ -1167,62 +1093,49 @@ class ProductDetailView(generics.RetrieveAPIView):
         product.save()
 
         return Response(
-            {"id": product.id, "favorite": product.is_favorite},
+            {"id": product.id, "is_favorite": product.is_favorite},
             status=status.HTTP_200_OK
         )
 
-    @swagger_auto_schema(
-        operation_summary="Обновление количества товара",
-        operation_description="Обновляет количество товара в сессии и пересчитывает его общую цену.",
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            required=["quantity"],
-            properties={
-                'quantity': openapi.Schema(type=openapi.TYPE_INTEGER, description="Количество товара", example=1)
-            }
-        ),
-        responses={
-            200: openapi.Response(
-                description="Обновленное количество и цена товара",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID товара"),
-                        'total_price': openapi.Schema(type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT,
-                                                      description="Общая цена товара с учетом нового количества"),
-                        'quantity': openapi.Schema(type=openapi.TYPE_INTEGER, description="Новое количество товара")
-                    }
-                )
-            ),
-            400: "Ошибка в обновлении количества товара"
-        }
-    )
-
     def put(self, request, *args, **kwargs):
-        """🔄 Обновление quantity в session и пересчёт total_price"""
+        """🔹 Обновление in_stock, price и promotion на клиентской стороне"""
         product = self.get_object()
-        quantity = request.data.get("quantity")
+        count = request.data.get("count")
 
-        if quantity is not None:
-            try:
-                quantity = int(quantity)
-                if quantity < 0:
-                    return Response({"error": "Quantity must be a positive integer"},
-                                    status=status.HTTP_400_BAD_REQUEST)
-            except ValueError:
-                return Response({"error": "Invalid quantity value"}, status=status.HTTP_400_BAD_REQUEST)
+        # ✅ Если count=0, сбрасываем в начальное состояние из БД
+        if count == 1:
+            request.session[f"product_{product.id}_price"] = float(product.price)
+            request.session[f"product_{product.id}_promotion"] = float(
+                product.promotion) if product.promotion else None
+            request.session[f"product_{product.id}_in_stock"] = product.in_stock
+            request.session.modified = True
+            return Response({
+                "message": "Состояние сброшено",
+                "price": float(product.price),
+                "promotion": float(product.promotion) if product.promotion else None,
+                "in_stock": product.in_stock
+            }, status=status.HTTP_200_OK)
 
-            # Сохраняем quantity в сессии
-            request.session[f"product_{product.id}_quantity"] = quantity
+        try:
+            count = int(count)
+            if count <= 0:
+                return Response({"error": "Count must be a positive integer"}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            return Response({"error": "Invalid count value"}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Выбираем цену: promotion или обычную
-            price = product.promotion if product.promotion else product.price
+        # ✅ Считаем `price` и `promotion` отдельно
+        price = float(product.price) * count
+        promotion = float(product.promotion) * count if product.promotion else None
+        in_stock = max(0, product.in_stock - count)
 
-            # Пересчитываем общую цену
-            total_price = price * quantity
+        request.session[f"product_{product.id}_price"] = price
+        request.session[f"product_{product.id}_promotion"] = promotion
+        request.session[f"product_{product.id}_in_stock"] = in_stock
+        request.session.modified = True
 
-            return Response({"id": product.id, "total_price": total_price, "quantity": quantity})
-
-        return Response({"error": "Quantity is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-
+        return Response({
+            "id": product.id,
+            "price": price,
+            "promotion": promotion,
+            "in_stock": in_stock
+        })
