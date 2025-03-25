@@ -2,6 +2,9 @@
 from rest_framework import serializers
 from .models import Product, Category, Comment
 from drf_yasg import openapi
+from django.db.models import Sum
+from .utils import round_to_half
+
 from drf_yasg.utils import swagger_auto_schema
 
 # Словарь для перевода с русского на английский
@@ -38,17 +41,15 @@ class CategoriesSerializer(serializers.ModelSerializer):
 
 class ProductSerializerHomepage(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id', help_text="id товара")
-    average_rating = serializers.SerializerMethodField(help_text="среднее статистический рейтинг")
+    average_rating = serializers.SerializerMethodField(help_text="средний статистический рейтинг")
     comments_count = serializers.IntegerField(source="comment_set.count", read_only=True, help_text="количество комментариев")
     image = serializers.SerializerMethodField(help_text="изображение шин")
-    promotion_category = serializers.SerializerMethodField(help_text="это поля для допалнительного акция еще на что действует кроме данного товара")
+    promotion_category = serializers.SerializerMethodField(help_text="это поля для дополнительной акции, еще на что действует кроме данного товара")
     season = serializers.SerializerMethodField(help_text="Сезонность шин: лето, зима, всесезонные.")
-    is_favorite = serializers.BooleanField(default=False,
-                                           help_text="избранный в homepage который добавляет в избранные если равна к true.")
+    is_favorite = serializers.BooleanField(default=False, help_text="избранный в homepage который добавляет в избранные если равна к true.")
     title = serializers.CharField(max_length=100, help_text="названия шин")
     in_stock = serializers.IntegerField(help_text="количество шины в складе")
     price = serializers.DecimalField(max_digits=10, decimal_places=2, help_text="цена без учета скидки")
-
 
     class Meta:
         model = Product
@@ -62,28 +63,27 @@ class ProductSerializerHomepage(serializers.ModelSerializer):
             return obj.promotion_category.split(", ")  # Преобразуем строку в список
         return []
 
-    # Swagger-описание для promotion_category
-    promotion_category_schema = openapi.Schema(
-        type=openapi.TYPE_ARRAY,  # Указываем, что это массив
-        items=openapi.Items(type=openapi.TYPE_STRING),
-        description="Список категорий акции, например: ['diski', 'tires']"
-    )
     def get_image(self, obj):
         if obj.image:
             return obj.image.url
         return None
+
     def get_comments_count(self, obj):
-        return obj.comments.count()
+        return obj.comment_set.count()
 
     def get_average_rating(self, obj):
-        comments = obj.comment_set.all()
-        from .utils import round_to_half
-        if not comments:
-            return 0.0
-        total_rating = sum(comment.rating for comment in comments)
-        return round_to_half(total_rating / len(comments))
+        comments = obj.comment_set.exclude(rating__isnull=True)  # Исключаем пустые значения рейтинга
+        count = comments.count()
 
+        if count == 0:
+            return 0.0  # Если нет комментариев, возвращаем 0.0
 
+        # Суммируем все рейтинги и вычисляем среднее
+        total_rating = comments.aggregate(models.Sum("rating"))["rating__sum"] or 0
+        average_rating = total_rating / count
+
+        # Округляем до ближайшей половины
+        return round(average_rating * 2) / 2
 class FavoriteProductListSerializer(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id')
 

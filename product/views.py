@@ -260,7 +260,7 @@ class HomepageView(ListAPIView):
                 "product_Id": product.id,
                 "image": product.image.url,
                 "season": product.season.label if product.season else None,
-                "average_rating": str(product.average_rating),
+                 "average_rating": round(product.average_rating * 2) / 2,
                 "comments_count": product.comments_count,
                 "title": product.title,
                 "in_stock": product.in_stock,
