@@ -994,11 +994,10 @@ class ProductFilterView(generics.ListAPIView):
 
 class ProductDetailView(generics.RetrieveAPIView):
     queryset = Product.objects.all()
-    serializer_class = ProductDetailSerializer # ✅ Основной сериализатор
+    serializer_class = ProductDetailSerializer  # ✅ Основной сериализатор
     permission_classes = [AllowAny]
 
     def get_serializer_class(self):
-
         if self.request.method == "POST":
             return serializers.Serializer
         return super().get_serializer_class()
@@ -1008,22 +1007,24 @@ class ProductDetailView(generics.RetrieveAPIView):
         serializer = self.get_serializer(product)
         data = serializer.data
 
-        session_price = request.session.get(f"product_{product.id}_price")
-        session_in_stock = request.session.get(f"product_{product.id}_in_stock")
-        session_promotion = request.session.get(f"product_{product.id}_promotion")
+        session_price = request.session.get(f"product_{product.id}_price", float(product.price))
+        session_in_stock = request.session.get(f"product_{product.id}_in_stock", product.in_stock)
+        session_promotion = request.session.get(f"product_{product.id}_promotion",
+                                                float(product.promotion) if product.promotion else None)
+        session_count = request.session.get(f"product_{product.id}_count", 1)  # ✅ count по умолчанию 1
         request.session.modified = True
 
-        price = session_price if session_price is not None else float(
-            product.promotion if product.promotion else product.price
-        )
-        # ✅ Определяем promotion
+        if session_count == 1:  # Если count = 1, сбрасываем сессию
+            request.session[f"product_{product.id}_price"] = float(product.price)
+            request.session[f"product_{product.id}_promotion"] = float(product.promotion) if product.promotion else None
+            request.session[f"product_{product.id}_in_stock"] = product.in_stock
+            request.session.modified = True
+
+        price = session_price if session_price is not None else float(product.price)
         promotion = session_promotion if session_promotion is not None else (
             float(product.promotion) if product.promotion else None
         )
-        # ✅ Определяем `in_stock`
         in_stock = session_in_stock if session_in_stock is not None else product.in_stock
-
-
 
         filter_fields = [
             Q(manufacturer=product.manufacturer),
@@ -1032,7 +1033,17 @@ class ProductDetailView(generics.RetrieveAPIView):
             Q(tire_type=product.tire_type)
         ]
 
-        characteristics_data = product.main_characteristics
+        characteristics_data = [
+            {"manufacturer": product.manufacturer},
+            {"model": product.model},
+            {"season": product.season.value if product.season else None},
+            {"width": product.width},
+            {"profile": product.profile},
+            {"diameter": product.diameter},
+            {"speed_index": product.speed_index},
+            {"load_index": product.load_index},
+            {"load_index_for_double": product.load_index_for_double},
+        ]
 
         strict_filters = Q()
         for combo in combinations(filter_fields, 3):
@@ -1040,13 +1051,12 @@ class ProductDetailView(generics.RetrieveAPIView):
 
         similar_products = Product.objects.filter(strict_filters).exclude(id=product.id)
 
-
         if similar_products.count() < 5:
             price_range = (product.price * Decimal('0.9'), product.price * Decimal('1.1'))
-            similar_products = Product.objects.filter(strict_filters, price__range=price_range).exclude(id=product.id)[:5]
+            similar_products = Product.objects.filter(strict_filters, price__range=price_range).exclude(id=product.id)[
+                               :5]
 
         similar_products_serialized = ProductDetailSerializer(similar_products, many=True).data
-
 
         similar_products_data = [
             {
@@ -1063,29 +1073,20 @@ class ProductDetailView(generics.RetrieveAPIView):
         ]
 
         return Response({
+            "id": product.id,
             "characteristics": characteristics_data,
             "title": data.get("title", product.title),
-            "id": product.id,
-            "manufacturer": product.manufacturer,
-            "model": product.model,
-            "season": product.season.value if product.season else None,
-            "is_favorite": product.is_favorite,
-            "width": product.width,
-            "profile": product.profile,
-            "diameter": product.diameter,
-            "speed_index": product.speed_index,
-            "load_index": product.load_index,
-            "load_index_for_double": product.load_index_for_double,
+            "favorite": product.is_favorite,
             "image_url": data.get("image_url", None),
             "promotion": promotion,
             "average_rating": data.get("average_rating", 0.0),
             "model_description": data.get("model_description", ""),
-            "price": price,  # ✅ Теперь это умноженная цена из PUT
-            "in_stock": in_stock,  # ✅ in_stock тоже обновляется
+            "price": price,
+            "in_stock": in_stock,
             "warranty": data.get("warranty") or "",
-            "similar_products": similar_products_data,  # ✅ Теперь тут список похожих товаров
+            "count": session_count,
+            "similar_products": similar_products_data,
         })
-
     def post(self, request, *args, **kwargs):
         """🔄 Переключение избранного"""
         product = self.get_object()
@@ -1093,28 +1094,13 @@ class ProductDetailView(generics.RetrieveAPIView):
         product.save()
 
         return Response(
-            {"id": product.id, "is_favorite": product.is_favorite},
+            {"id": product.id, "favorite": product.is_favorite},
             status=status.HTTP_200_OK
         )
 
     def put(self, request, *args, **kwargs):
-        """🔹 Обновление in_stock, price и promotion на клиентской стороне"""
         product = self.get_object()
-        count = request.data.get("count")
-
-        # ✅ Если count=0, сбрасываем в начальное состояние из БД
-        if count == 1:
-            request.session[f"product_{product.id}_price"] = float(product.price)
-            request.session[f"product_{product.id}_promotion"] = float(
-                product.promotion) if product.promotion else None
-            request.session[f"product_{product.id}_in_stock"] = product.in_stock
-            request.session.modified = True
-            return Response({
-                "message": "Состояние сброшено",
-                "price": float(product.price),
-                "promotion": float(product.promotion) if product.promotion else None,
-                "in_stock": product.in_stock
-            }, status=status.HTTP_200_OK)
+        count = request.data.get("count", 1)  # ✅ count по умолчанию 1
 
         try:
             count = int(count)
@@ -1123,19 +1109,47 @@ class ProductDetailView(generics.RetrieveAPIView):
         except ValueError:
             return Response({"error": "Invalid count value"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # ✅ Считаем `price` и `promotion` отдельно
-        price = float(product.price) * count
-        promotion = float(product.promotion) * count if product.promotion else None
-        in_stock = max(0, product.in_stock - count)
+        # ✅ Если count == 1, сбрасываем сессию до состояния БД
+        if count == 1:
+            request.session[f"product_{product.id}_price"] = float(product.price)
+            request.session[f"product_{product.id}_promotion"] = float(
+                product.promotion) if product.promotion else None
+            request.session[f"product_{product.id}_in_stock"] = product.in_stock
+        else:
+            total_price = float(product.price) * count
+            total_promotion = float(product.promotion) * count if product.promotion else None
+            new_in_stock = max(0, product.in_stock - count)
 
-        request.session[f"product_{product.id}_price"] = price
-        request.session[f"product_{product.id}_promotion"] = promotion
-        request.session[f"product_{product.id}_in_stock"] = in_stock
+            request.session[f"product_{product.id}_price"] = total_price
+            request.session[f"product_{product.id}_promotion"] = total_promotion
+            request.session[f"product_{product.id}_in_stock"] = new_in_stock
+
+        request.session[f"product_{product.id}_count"] = count  # ✅ Сохраняем count в сессии
         request.session.modified = True
 
         return Response({
             "id": product.id,
-            "price": price,
-            "promotion": promotion,
-            "in_stock": in_stock
+            "price": request.session[f"product_{product.id}_price"],
+            "promotion": request.session[f"product_{product.id}_promotion"],
+            "in_stock": request.session[f"product_{product.id}_in_stock"],
+            "count": count  # ✅ Добавили count в response
         })
+
+@api_view(["PUT"])
+def update_characteristics(request, product_id):
+    try:
+        product = Product.objects.get(id=product_id)
+    except Product.DoesNotExist:
+        return Response({"error": "Product not found"}, status=404)
+
+    characteristics_data = request.data.get("characteristics", [])
+
+    if not isinstance(characteristics_data, list):
+        return Response({"error": "Invalid format, expected a list"}, status=400)
+
+    # 🔹 Обновляем JSONField
+    product.main_characteristics = characteristics_data
+    product.save()
+
+    return Response(
+        {"message": "Characteristics updated successfully", "main_characteristics": product.main_characteristics})

@@ -156,14 +156,14 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     is_favorite = serializers.BooleanField(default=False,
                                            help_text="избранный в каталоге который добавляет в избранные если равна к true.")
     warranty = serializers.CharField(allow_blank=True, required=False)
-    main_characteristics = serializers.JSONField()
+
     in_stock = serializers.IntegerField(help_text="количество шины в складе")
 
     class Meta:
         model = Product
         fields = ["id", "title", "manufacturer", "in_stock", "model", "price", "season", "is_favorite", "width",
                   "profile", "diameter", "speed_index", "load_index", "load_index_for_double", "image_url", "comments",
-                  "average_rating", "model_description", "season_value", "warranty", "main_characteristics"]
+                  "average_rating", "model_description", "season_value", "warranty", ]
 
     def get_image_url(self, obj):
         return obj.image.url if obj.image else None

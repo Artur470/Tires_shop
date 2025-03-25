@@ -89,7 +89,7 @@ class Product(models.Model):
     runflat =  models.BooleanField(default=False)
     off_road = models.BooleanField(default=False)
     warranty = models.CharField(max_length=100, blank=True, null=True)  # Поле гарантии
-    main_characteristics = models.JSONField(default=list)
+
 
     def __str__(self):
         return f"{self.title} - {self.id}"
