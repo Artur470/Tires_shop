@@ -94,7 +94,7 @@ class FavoriteProductListSerializer(serializers.ModelSerializer):
 
 class CommentSerializer(serializers.ModelSerializer):
     product_id = serializers.IntegerField()  # Изменяем на product_id
-
+    rating = serializers.DecimalField(max_digits=2, decimal_places=1)
     class Meta:
         model = Comment
         fields = ['id', 'product_id', 'comment', 'rating', 'created_at']

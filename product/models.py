@@ -107,6 +107,7 @@ class Category(models.Model):
 
     def get_value(self):
         return self.value  # Возвращает английский текст
+
 class Comment(models.Model):
     RATING_CHOICES = [
         (Decimal("1.0"), "1 ★"),
