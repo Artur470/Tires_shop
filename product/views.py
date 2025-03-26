@@ -1033,17 +1033,17 @@ class ProductDetailView(generics.RetrieveAPIView):
             Q(tire_type=product.tire_type)
         ]
 
-        characteristics_data = [
-            {"manufacturer": product.manufacturer},
-            {"model": product.model},
-            {"season": product.season.value if product.season else None},
-            {"width": product.width},
-            {"profile": product.profile},
-            {"diameter": product.diameter},
-            {"speed_index": product.speed_index},
-            {"load_index": product.load_index},
-            {"load_index_for_double": product.load_index_for_double},
-        ]
+        characteristics_data = ({
+            "manufacturer": product.manufacturer,
+            "model": product.model,
+            "season": product.season.value if product.season else None,
+            "width": product.width,
+            "profile": product.profile,
+            "diameter": product.diameter,
+            "speed_index": product.speed_index,
+            "load_index": product.load_index,
+            "load_index_for_double": product.load_index_for_double,
+        })
 
         strict_filters = Q()
         for combo in combinations(filter_fields, 3):
