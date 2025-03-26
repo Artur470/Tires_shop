@@ -99,8 +99,11 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 database_url = os.environ.get("DATABASE_URL")
 DATABASES = {
-    'default': dj_database_url.parse("postgresql://tires_shop_database_user:WwvunQtkU5XAhXvo8sUjZwN0KfMh16nI@dpg-cv27jv52ng1s738ndfug-a.oregon-postgres.render.com/tires_shop_database")
+    'default': dj_database_url.parse(
+        "postgresql://tirespostgresql_db_user:RBsd7V338SRINfLrakOZDSZFNrtBENtf@dpg-cvhs2gtsvqrc73chmu1g-a.oregon-postgres.render.com/tirespostgresql_db?sslmode=require&connect_timeout=10"
+    )
 }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
