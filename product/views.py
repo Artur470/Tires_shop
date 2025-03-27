@@ -1068,6 +1068,7 @@ class ProductDetailView(generics.RetrieveAPIView):
                 "favorite": p["is_favorite"],
                 "season": p["season_value"],
                 "image_url": p.get("image_url", None),
+                "comments_count": p["comments_count"],
             }
             for p in similar_products_serialized
         ]
@@ -1080,6 +1081,7 @@ class ProductDetailView(generics.RetrieveAPIView):
             "image_url": data.get("image_url", None),
             "promotion": promotion,
             "average_rating": data.get("average_rating", 0.0),
+            "comments_count": product.comment_set.count(),
             "model_description": data.get("model_description", ""),
             "price": price,
             "in_stock": in_stock,

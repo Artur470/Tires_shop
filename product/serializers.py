@@ -151,6 +151,8 @@ class ProductSerializerll(serializers.ModelSerializer):
 class ProductDetailSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
     comments = CommentSerializer(many=True, read_only=True)
+    comments_count = serializers.IntegerField(source="comment_set.count", read_only=True,
+                                              help_text="количество комментариев")
     average_rating = serializers.SerializerMethodField()
     season_value = serializers.CharField(source="season.value", read_only=True)
     is_favorite = serializers.BooleanField(default=False,
@@ -163,7 +165,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         model = Product
         fields = ["id", "title", "manufacturer", "in_stock", "model", "price", "season", "is_favorite", "width",
                   "profile", "diameter", "speed_index", "load_index", "load_index_for_double", "image_url", "comments",
-                  "average_rating", "model_description", "season_value", "warranty", ]
+                  "average_rating", "model_description", "season_value", "warranty", 'comments_count',]
 
     def get_image_url(self, obj):
         return obj.image.url if obj.image else None
