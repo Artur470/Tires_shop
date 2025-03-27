@@ -28,6 +28,7 @@ from rest_framework.pagination import PageNumberPagination
 from .filters import ProductFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
+from rest_framework.pagination import LimitOffsetPagination
 
 from drf_yasg import openapi
 from rest_framework.response import Response
@@ -1155,3 +1156,21 @@ def update_characteristics(request, product_id):
 
     return Response(
         {"message": "Characteristics updated successfully", "main_characteristics": product.main_characteristics})
+
+
+class CommentLimitOffsetPagination(LimitOffsetPagination):
+    default_limit = 3  # Количество комментариев в одной части
+    max_limit = 40  # Максимальный лимит, чтобы не перегружать сервер
+
+
+class ProductCommentListView(generics.ListAPIView):
+    """
+    Получение всех комментариев к конкретному продукту.
+    """
+    serializer_class = CommentSerializer
+    permission_classes = [AllowAny]
+    pagination_class = CommentLimitOffsetPagination
+
+    def get_queryset(self):
+        product_id = self.kwargs["product_id"]
+        return Comment.objects.filter(product_id=product_id)
