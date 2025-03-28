@@ -86,7 +86,7 @@ class Product(models.Model):
     season = models.ForeignKey('Season', on_delete=models.CASCADE)
     tire_type = models.ForeignKey('TireType', on_delete=models.CASCADE)
     body_type = models.ForeignKey('BodyType', on_delete=models.CASCADE)
-    runflat =  models.BooleanField(default=False)
+    runflat = models.BooleanField(default=False)
     off_road = models.BooleanField(default=False)
     warranty = models.CharField(max_length=100, blank=True, null=True)  # Поле гарантии
 

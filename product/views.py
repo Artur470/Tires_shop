@@ -8,6 +8,7 @@ from django.db.models import Count, Avg, F
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers
 from decimal import Decimal
+from functools import reduce
 import requests
 from drf_yasg.utils import swagger_auto_schema
 from django.db.models import Min, Max
@@ -997,13 +998,8 @@ class ProductFilterView(generics.ListAPIView):
 
 class ProductDetailView(generics.RetrieveAPIView):
     queryset = Product.objects.all()
-    serializer_class = ProductDetailSerializer  # ✅ Основной сериализатор
+    serializer_class = ProductDetailSerializer
     permission_classes = [AllowAny]
-
-    def get_serializer_class(self):
-        if self.request.method == "POST":
-            return serializers.Serializer
-        return super().get_serializer_class()
 
     def retrieve(self, request, *args, **kwargs):
         product = self.get_object()
@@ -1012,52 +1008,36 @@ class ProductDetailView(generics.RetrieveAPIView):
 
         session_price = request.session.get(f"product_{product.id}_price", float(product.price))
         session_in_stock = request.session.get(f"product_{product.id}_in_stock", product.in_stock)
-        session_promotion = request.session.get(f"product_{product.id}_promotion",
-                                                float(product.promotion) if product.promotion else None)
-        session_count = request.session.get(f"product_{product.id}_count", 1)  # ✅ count по умолчанию 1
-        request.session.modified = True
+        session_promotion = request.session.get(f"product_{product.id}_promotion", float(product.promotion) if product.promotion else None)
+        session_count = request.session.get(f"product_{product.id}_count", 1)
 
-        if session_count == 1:  # Если count = 1, сбрасываем сессию
+        request.session.modified = True
+        if session_count == 1:
             request.session[f"product_{product.id}_price"] = float(product.price)
             request.session[f"product_{product.id}_promotion"] = float(product.promotion) if product.promotion else None
             request.session[f"product_{product.id}_in_stock"] = product.in_stock
-            request.session.modified = True
 
         price = session_price if session_price is not None else float(product.price)
-        promotion = session_promotion if session_promotion is not None else (
-            float(product.promotion) if product.promotion else None
-        )
+        promotion = session_promotion if session_promotion is not None else (float(product.promotion) if product.promotion else None)
         in_stock = session_in_stock if session_in_stock is not None else product.in_stock
 
-        filter_fields = [
+        # Фильтрация похожих товаров
+        base_filters = [
             Q(manufacturer=product.manufacturer),
             Q(model=product.model),
             Q(season=product.season),
-            Q(tire_type=product.tire_type)
+            Q(diameter=product.diameter),
+            Q(width=product.width),
+            Q(tire_type=product.tire_type),
         ]
 
-        characteristics_data = ({
-            "manufacturer": product.manufacturer,
-            "model": product.model,
-            "season": product.season.value if product.season else None,
-            "width": product.width,
-            "profile": product.profile,
-            "diameter": product.diameter,
-            "speed_index": product.speed_index,
-            "load_index": product.load_index,
-            "load_index_for_double": product.load_index_for_double,
-        })
-
-        strict_filters = Q()
-        for combo in combinations(filter_fields, 3):
-            strict_filters |= combo[0] & combo[1] & combo[2]
-
+        strict_filters = reduce(lambda x, y: x & y, base_filters)
         similar_products = Product.objects.filter(strict_filters).exclude(id=product.id)
 
         if similar_products.count() < 5:
             price_range = (product.price * Decimal('0.9'), product.price * Decimal('1.1'))
-            similar_products = Product.objects.filter(strict_filters, price__range=price_range).exclude(id=product.id)[
-                               :5]
+            relaxed_filters = strict_filters | Q(price__range=price_range)
+            similar_products = Product.objects.filter(relaxed_filters).exclude(id=product.id)[:5]
 
         similar_products_serialized = ProductDetailSerializer(similar_products, many=True).data
 
@@ -1078,7 +1058,17 @@ class ProductDetailView(generics.RetrieveAPIView):
 
         return Response({
             "id": product.id,
-            "characteristics": characteristics_data,
+            "characteristics": {
+                "manufacturer": product.manufacturer,
+                "model": product.model,
+                "season": product.season.value if product.season else None,
+                "width": product.width,
+                "profile": product.profile,
+                "diameter": product.diameter,
+                "speed_index": product.speed_index,
+                "load_index": product.load_index,
+                "load_index_for_double": product.load_index_for_double,
+            },
             "title": data.get("title", product.title),
             "favorite": product.is_favorite,
             "image_url": data.get("image_url", None),
