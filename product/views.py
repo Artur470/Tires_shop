@@ -472,6 +472,11 @@ class CategoriesListView(generics.ListCreateAPIView):
             category = serializer.save()
             return Response({'label': category.label, 'value': category.value}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
 class FavoriteProduct(APIView):
     """
     Получение списка избранных продуктов и обновление статуса "избранного".
@@ -484,18 +489,38 @@ class FavoriteProduct(APIView):
             200: openapi.Response(
                 description="Список избранных продуктов",
                 examples={
-                    "application/json": [
-                        {
-                            "id": 1,
-                            "name": "Продукт 1",
-                            "is_favorite": True
-                        },
-                        {
-                            "id": 2,
-                            "name": "Продукт 2",
-                            "is_favorite": True
-                        }
-                    ]
+                    "application/json": {
+                        "total_favorites": 3,
+                        "favorites": [
+                            {
+                                "product_Id": 3,
+                                "image": "image/upload/v1742982479/lgabfuhfotlzucuvjnpx.jpg",
+                                "price": "455.00",
+                                "season": 2,
+                                "title": "ggg",
+                                "in_stock": 50,
+                                "is_favorite": True
+                            },
+                            {
+                                "product_Id": 2,
+                                "image": "image/upload/v1742982353/hpowq9tsbjla99wgor1j.jpg",
+                                "price": "2000.00",
+                                "season": 2,
+                                "title": "title",
+                                "in_stock": 40,
+                                "is_favorite": True
+                            },
+                            {
+                                "product_Id": 1,
+                                "image": "image/upload/v1742982183/vmh3n2n5wcgunrahzqzh.jpg",
+                                "price": "500.00",
+                                "season": 3,
+                                "title": "turbo",
+                                "in_stock": 80,
+                                "is_favorite": True
+                            }
+                        ]
+                    }
                 }
             )
         }
@@ -503,8 +528,23 @@ class FavoriteProduct(APIView):
     def get(self, request):
         # Получаем все избранные продукты
         queryset = Product.objects.filter(is_favorite=True)
+
+        # Сериализуем данные
         serializer = FavoriteProductListSerializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # Получаем количество избранных товаров
+        total_favorites = queryset.count()
+
+        # Переставляем элементы, чтобы новый товар был в начале
+        favorites = serializer.data
+        favorites.reverse()  # Меняем порядок на противоположный
+
+        # Возвращаем ответ с добавлением количества товаров в избранном
+        return Response({
+            "total_favorites": total_favorites,
+            "favorites": favorites
+        }, status=status.HTTP_200_OK)
+
 
     @swagger_auto_schema(
         operation_summary="Обновление статуса избранного у продукта",
