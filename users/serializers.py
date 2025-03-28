@@ -32,7 +32,6 @@ class UserRegisterSerializer(serializers.ModelSerializer, PasswordMixin):
             'id',
             'email',
             'username',
-            'last_name',
             'phone',
             'password',
             'confirm_password',
@@ -81,7 +80,6 @@ class UserSerializer(serializers.ModelSerializer):
             'id',
             'email',
             'username',
-            'last_name',
             'phone',
         ]
 

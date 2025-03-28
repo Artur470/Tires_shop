@@ -39,7 +39,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=50, unique=True, null=True)
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=100, unique=True, null=True)
-    last_name = models.CharField(max_length=100)
     password = models.CharField(max_length=255, null=True, blank=True)
     date_joined = models.DateTimeField(default=timezone.now)
     is_superuser = models.BooleanField(default=False)

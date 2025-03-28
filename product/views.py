@@ -805,6 +805,10 @@ class ProductListView(generics.ListAPIView):
                             items=openapi.Schema(type=openapi.TYPE_INTEGER),
                             description="Список доступных страниц"
                         ),
+                        "total_count": openapi.Schema(
+                            type=openapi.TYPE_INTEGER,
+                            description="общая количество товаров"
+                        ),
                         "products": openapi.Schema(
                             type=openapi.TYPE_ARRAY,
                             items=openapi.Schema(
@@ -849,10 +853,8 @@ class ProductListView(generics.ListAPIView):
                                         description="Сезонность товара  winter(зима), summer(лето), all_season(все сезоны)"
                                                     "season"
                                     ),
-                                    "total_count" : openapi.Schema(
-                                        type=openapi.TYPE_INTEGER,
-                                        description="общая количество товаров"
-                                    )
+
+
                                 }
                             )
                         )
