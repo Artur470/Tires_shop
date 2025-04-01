@@ -11,7 +11,16 @@ from dj_rest_auth.registration.views import SocialLoginView
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.facebook.views import FacebookOAuth2Adapter
 from rest_framework_simplejwt.authentication import JWTAuthentication
-
+from django.core.cache import cache
+from django.utils.timezone import now
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.response import Response
+from rest_framework import generics, status
+from drf_yasg.utils import swagger_auto_schema
+from datetime import timedelta
+from .serializers import LoginSerializer
+from .models import User
+from .utils import generate_tokens_for_user
 from drf_yasg import openapi
 from users.serializers import (
     UserRegisterSerializer,
@@ -70,21 +79,57 @@ class UserRegisterView(generics.CreateAPIView):
 
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
+    MAX_ATTEMPTS = 5  # Максимальное количество попыток
+    BLOCK_TIME = 60  # Время блокировки в секундах (60 сек = 1 минута)
 
     @swagger_auto_schema(
         tags=['Authentication'],
         operation_description="Этот эндпоинт позволяет пользователю войти в систему и получить токены доступа и обновления."
     )
     def post(self, request):
-        email = request.data["email"]
-        password = request.data["password"]
+        email = request.data.get("email")
+        password = request.data.get("password")
+        ip = self.get_client_ip(request)
+        cache_key = f"failed_login_{email or ip}"
+        block_time_key = f"block_time_{email or ip}"
+
+        # Получаем текущее число неудачных попыток
+        attempts = cache.get(cache_key, 0)
+        block_end_time = cache.get(block_time_key)
+
+        # Если пользователь уже заблокирован, проверяем оставшееся время
+        if block_end_time:
+            remaining_time = int((block_end_time - now()).total_seconds())
+            if remaining_time > 0:
+                return Response(
+                    {"error": f"Слишком много неудачных попыток. Попробуйте снова через {remaining_time} секунд."},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS
+                )
+            else:
+                # Сбрасываем блокировку, если время истекло
+                cache.delete(cache_key)
+                cache.delete(block_time_key)
 
         user = User.objects.filter(email=email).first()
         if not user:
-            return Response({"error": "User not found!"}, status.HTTP_404_NOT_FOUND)
+            return Response({"error": "User not found!"}, status=status.HTTP_404_NOT_FOUND)
 
         if not user.check_password(password):
+            attempts += 1
+            cache.set(cache_key, attempts, timeout=self.BLOCK_TIME)  # Сохраняем количество попыток
+
+            if attempts >= self.MAX_ATTEMPTS:
+                block_end_time = now() + timedelta(seconds=self.BLOCK_TIME)
+                cache.set(block_time_key, block_end_time, timeout=self.BLOCK_TIME)
+                return Response(
+                    {"error": f"Вы заблокированы. Попробуйте снова через {self.BLOCK_TIME} секунд."},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS
+                )
             raise AuthenticationFailed("Incorrect password!")
+
+        # Если логин успешный, сбрасываем счетчик попыток и время блокировки
+        cache.delete(cache_key)
+        cache.delete(block_time_key)
 
         refresh_token, access_token = generate_tokens_for_user(user)
 
@@ -93,6 +138,14 @@ class LoginView(generics.GenericAPIView):
             "access": access_token,
         })
 
+    def get_client_ip(self, request):
+        """Получает IP пользователя"""
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(",")[0]
+        else:
+            ip = request.META.get("REMOTE_ADDR")
+        return ip
 
 
 class UserMeView(generics.RetrieveAPIView):
