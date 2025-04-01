@@ -203,6 +203,8 @@ EMAIL_HOST_USER = config("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="no-reply@example.com")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 
 CORS_ALLOWED_ORIGINS = [
 
@@ -225,4 +227,4 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 )
-EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="no-reply@example.com")
+
