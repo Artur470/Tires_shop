@@ -305,13 +305,20 @@ class ChangePasswordView(generics.UpdateAPIView):
         return Response({'message': 'The password has been successfully changed.'}, status=status.HTTP_200_OK)
 
 
+
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     serializer_class = SocialLoginSerializer
 
     @swagger_auto_schema(
-        operation_description="Авторизация через Google и получение JWT токенов.",
-        request_body=SocialLoginSerializer,
+        operation_description="Авторизация через Google с использованием только токена доступа и получение JWT токенов.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'access_token': openapi.Schema(type=openapi.TYPE_STRING, description='Токен доступа Google'),
+            },
+            required=['access_token']
+        ),
         responses={
             status.HTTP_200_OK: openapi.Response(
                 description="Токены успешно получены",
@@ -327,12 +334,56 @@ class GoogleLogin(SocialLoginView):
             ),
         }
     )
-    def get_response_data(self):
-        user = self.user  # Получаем пользователя
-        token = self.get_token(user)  # Получаем JWT токен
+    def post(self, request, *args, **kwargs):
+        # Получаем access_token от фронта
+        access_token = request.data.get('access_token')
+
+        if not access_token:
+            return Response({"error": "Access token is required!"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Получаем информацию о пользователе через Google API
+        user_info = self.get_google_user_info(access_token)
+
+        # Проверяем, существует ли пользователь в базе
+        existing_user = User.objects.filter(email=user_info.get("email")).first()
+
+        if not existing_user:
+            # Если пользователь не найден, создаем нового
+            new_user = User.objects.create(
+                email=user_info.get("email"),
+                username=user_info.get("name"),
+                first_name=user_info.get("given_name"),
+                last_name=user_info.get("family_name"),
+                phone_number=user_info.get("phone_number"),
+                profile_picture=user_info.get("picture"),
+            )
+            user = new_user
+        else:
+            # Если пользователь найден, обновляем его данные
+            existing_user.username = user_info.get("name")
+            existing_user.first_name = user_info.get("given_name")
+            existing_user.last_name = user_info.get("family_name")
+            existing_user.phone_number = user_info.get("phone_number")
+            existing_user.profile_picture = user_info.get("picture")
+            existing_user.save()
+            user = existing_user
+
+        # Генерация токенов
+        token = self.get_token(user)
         return Response({'access_token': token['access'], 'refresh_token': token['refresh']})
 
+    def get_google_user_info(self, access_token):
+        """
+        Используем access_token, чтобы получить данные о пользователе через Google API.
+        """
+        url = "https://www.googleapis.com/oauth2/v3/userinfo"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        response = requests.get(url, headers=headers)
 
+        if response.status_code == 200:
+            return response.json()  # Возвращаем данные о пользователе
+        else:
+            raise Exception("Unable to fetch user data from Google API")
 class FacebookLogin(SocialLoginView):
     adapter_class = FacebookOAuth2Adapter
     serializer_class = SocialLoginSerializer
