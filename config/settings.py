@@ -225,3 +225,4 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 )
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="no-reply@example.com")
