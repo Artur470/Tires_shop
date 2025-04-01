@@ -641,6 +641,8 @@ class FavoriteProduct(APIView):
             print(f"Товар с ID {product_id} успешно добавлен в избранное.")
         else:
             print(f"Ошибка при добавлении товара с ID {product_id} в избранное.")
+
+
 class CommentCreateView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
@@ -649,7 +651,7 @@ class CommentCreateView(generics.CreateAPIView):
     Создание комментария с указанием `product_id`.
     """
     serializer_class = CommentSerializer
-    permission_classes = [AllowAny]
+
 
     @swagger_auto_schema(
         operation_summary="Создание комментария",
@@ -704,7 +706,13 @@ class CommentCreateView(generics.CreateAPIView):
     def perform_create(self, serializer):
         product_id = serializer.validated_data['product_id']
         product = Product.objects.get(id=product_id)
-        serializer.save(product=product)  # Привязываем комментарий к продукту
+
+        # Проверяем, аутентифицирован ли пользователь
+        if not self.request.user.is_authenticated:
+            raise PermissionDenied("Вы должны быть аутентифицированы, чтобы оставлять комментарии.")
+
+        serializer.save(product=product, user=self.request.user)  # Передаём user
+
 
 class ProductCommentListView(generics.ListAPIView):
     """

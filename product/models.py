@@ -122,9 +122,10 @@ class Comment(models.Model):
         (Decimal("5.0"), "5 ★"),
     ]
 
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=False, blank=False)
     product = models.ForeignKey("Product", on_delete=models.CASCADE)
     comment = models.TextField()
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
     rating = models.DecimalField(
         max_digits=2,
         decimal_places=1,
