@@ -4,6 +4,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from cloudinary.models import CloudinaryField
 # Create your models here.
 from decimal import Decimal
+from users.models import User
 
 class Condition(models.Model):
     label = models.CharField(max_length=100, unique=True)  # "Новый"
@@ -123,6 +124,7 @@ class Comment(models.Model):
 
     product = models.ForeignKey("Product", on_delete=models.CASCADE)
     comment = models.TextField()
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     rating = models.DecimalField(
         max_digits=2,
         decimal_places=1,

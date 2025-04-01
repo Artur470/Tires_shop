@@ -10,11 +10,16 @@ from .views import (
     ChangeForgotPasswordView,
     UserProfileUpdateView,
     UserMeView,
+    GoogleLogin,
+    FacebookLogin,
 )
+
 
 
 urlpatterns = [
     path('login/', LoginView.as_view(), name='token_obtain_pair'),
+    path('login/google/', GoogleLogin.as_view(), name='google_login'),
+    path('login/facebook/', FacebookLogin.as_view(), name='facebook_login'),
     path('login/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('register/', UserRegisterView.as_view(), name='user-registration'),
     path('logout/', LogoutView.as_view(), name='logout'),

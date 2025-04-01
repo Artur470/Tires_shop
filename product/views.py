@@ -5,6 +5,9 @@ from django.shortcuts import render, get_object_or_404
 from rest_framework import generics
 from rest_framework.generics import GenericAPIView
 from django.db.models import Count, Avg, F
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers
 from decimal import Decimal
@@ -478,6 +481,8 @@ class CategoriesListView(generics.ListCreateAPIView):
 
 
 class FavoriteProduct(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
     """
     Получение списка избранных продуктов и обновление статуса "избранного".
     """
@@ -637,7 +642,10 @@ class FavoriteProduct(APIView):
         else:
             print(f"Ошибка при добавлении товара с ID {product_id} в избранное.")
 class CommentCreateView(generics.CreateAPIView):
-    """
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    """ 
     Создание комментария с указанием `product_id`.
     """
     serializer_class = CommentSerializer
@@ -1202,6 +1210,7 @@ class ProductCommentListView(generics.ListAPIView):
     serializer_class = CommentSerializer
     permission_classes = [AllowAny]
     pagination_class = CommentLimitOffsetPagination
+    queryset = Comment.objects.all()
 
     def get_queryset(self):
         product_id = self.kwargs["product_id"]

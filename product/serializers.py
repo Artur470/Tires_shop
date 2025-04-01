@@ -95,9 +95,10 @@ class FavoriteProductListSerializer(serializers.ModelSerializer):
 class CommentSerializer(serializers.ModelSerializer):
     product_id = serializers.IntegerField()  # Изменяем на product_id
     rating = serializers.DecimalField(max_digits=2, decimal_places=1)
+    username = serializers.CharField(source='user.username', read_only=True)
     class Meta:
         model = Comment
-        fields = ['id', 'product_id', 'comment', 'rating', 'created_at']
+        fields = ['id', 'product_id', 'comment', 'rating', 'created_at', 'username']
 
     def validate_product_id(self, value):
         if not Product.objects.filter(id=value).exists():

@@ -10,18 +10,27 @@ class PasswordMixin(serializers.Serializer):
     confirm_password = serializers.CharField(write_only=True, required=True)
 
     def validate(self, attrs):
+        # Проверка на совпадение паролей
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError({"error": "Пароли не совпадают."})
 
         password = attrs['password']
+
+        # Проверка на наличие хотя бы одной заглавной буквы
         if not re.search(r'[A-Z]', password):
             raise serializers.ValidationError({'password': "Пароль должен содержать хотя бы одну заглавную букву."})
-        if not re.search(r'[!@#$%^&*]', password):
-            raise serializers.ValidationError(
-                {'password': "Пароль должен содержать хотя бы один специальный символ (!@#$%^&*)."}
-            )
+
+        # Специальные символы теперь не обязательны
+        # Убираем обязательность наличия хотя бы одного специального символа
+        # if not re.search(r'[!@#$%^&*]', password):
+        #     raise serializers.ValidationError(
+        #         {'password': "Пароль должен содержать хотя бы один специальный символ (!@#$%^&*)."}
+        #     )
+
+        # Проверка на минимальную длину пароля
         if len(password) < 8:
             raise serializers.ValidationError({'password': "Пароль должен быть не короче 8 символов."})
+
         return attrs
 
 
@@ -59,21 +68,30 @@ class LogoutSerializer(serializers.Serializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    username = serializers.CharField()
+    username = serializers.CharField(max_length=150, required=False)
+    email = serializers.EmailField(required=False)
 
     class Meta:
         model = User
         fields = ["username", "email"]
 
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Этот email уже используется.")
+        return value
+
     def update(self, instance, validated_data):
+        # Обновляем поля пользователя, если они предоставлены
         instance.username = validated_data.get('username', instance.username)
         instance.email = validated_data.get('email', instance.email)
+
+        # Сохраняем объект
         instance.save()
         return instance
 
-
 class UserSerializer(serializers.ModelSerializer):
     """ Используется для получения информации о пользователе (без паролей) """
+
     class Meta:
         model = User
         fields = [
@@ -129,3 +147,15 @@ class ChangePasswordSerializer(serializers.Serializer):
     class Meta:
         model = User
         fields = ['old_password', 'password', 'confirm_password']
+
+
+class SocialLoginSerializer(serializers.Serializer):
+    access_token = serializers.CharField(
+        help_text="Токен доступа, полученный от социальной сети. Используется для аутентификации в приложении."
+    )
+    code = serializers.CharField(
+        help_text="Код, полученный после успешной аутентификации через социальную сеть."
+    )
+    id_token = serializers.CharField(
+        help_text="Идентификатор пользователя, полученный через социальную сеть. Используется для получения информации о пользователе."
+    )

@@ -1,14 +1,18 @@
 from rest_framework import status
-from rest_framework.exceptions import AuthenticationFailed, NotAcceptable
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework import generics, exceptions
+from rest_framework import generics
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import (
-    TokenRefreshView,
-)
+from rest_framework_simplejwt.views import TokenRefreshView
 from django.core.mail import send_mail
 from drf_yasg.utils import swagger_auto_schema
+from dj_rest_auth.registration.views import SocialLoginView
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.facebook.views import FacebookOAuth2Adapter
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
+from drf_yasg import openapi
 from users.serializers import (
     UserRegisterSerializer,
     LoginSerializer,
@@ -19,22 +23,22 @@ from users.serializers import (
     ForgotPasswordSerializer,
     ConfirmationCodeSerializer,
     UserSerializer,
+    SocialLoginSerializer,
 )
-
 from users.models import User, OTP
 from config import settings
+from dj_rest_auth.registration.views import SocialLoginView
 
+
+# Вспомогательная функция для генерации токенов
+def generate_tokens_for_user(user):
+    refresh = RefreshToken.for_user(user)
+    return str(refresh), str(refresh.access_token)
 
 class TokenRefreshView(TokenRefreshView):
     @swagger_auto_schema(
         tags=['Authentication'],
-        operation_description="Этот эндпоинт предоставляет "
-                              "возможность пользователю "
-                              "обновить токен доступа (Access Token) "
-                              "с помощью токена обновления (Refresh Token). "
-                              "Токен обновления позволяет пользователям "
-                              "продлить срок действия своего Access Token без "
-                              "необходимости повторной аутентификации.",
+        operation_description="Этот эндпоинт предоставляет возможность пользователю обновить токен доступа (Access Token) с помощью токена обновления (Refresh Token)."
     )
     def post(self, *args, **kwargs):
         return super().post(*args, **kwargs)
@@ -46,25 +50,19 @@ class UserRegisterView(generics.CreateAPIView):
 
     @swagger_auto_schema(
         tags=['Authentication'],
-        operation_description="Этот эндпоинт предоставляет "
-                              "возможность пользователям зарегистрироваться "
-                              "в системе, предоставив необходимые данные. "
-                              "После успешной регистрации, система создает "
-                              "новую запись пользователя и возвращает информацию о нем.",
+        operation_description="Этот эндпоинт позволяет пользователю зарегистрироваться и получить токены доступа и обновления."
     )
     def post(self, request):
-        serializer = UserRegisterSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()  # Сохраняем пользователя и получаем объект пользователя
+            user = serializer.save()
 
-            # Генерируем токены
-            refresh = RefreshToken.for_user(user)
+            refresh_token, access_token = generate_tokens_for_user(user)
 
-            # Возвращаем данные пользователя и токены
             return Response({
                 'user': serializer.data,
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
+                'refresh': refresh_token,
+                'access': access_token,
             }, status=status.HTTP_201_CREATED)
 
         return Response({'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
@@ -75,48 +73,41 @@ class LoginView(generics.GenericAPIView):
 
     @swagger_auto_schema(
         tags=['Authentication'],
-        operation_description="Этот эндпоинт предоставляет "
-                              "возможность пользователям войти "
-                              "в систему, предоставив имя пользователя "
-                              "и пароль. После успешного входа, система "
-                              "генерирует Access Token и Refresh Token для "
-                              "пользователя, которые можно использовать для "
-                              "доступа к защищенным ресурсам. \nСрок действия 'access' токена - "
-                              "60 минут, а refresh токена - 30 дней.",
+        operation_description="Этот эндпоинт позволяет пользователю войти в систему и получить токены доступа и обновления."
     )
     def post(self, request):
         email = request.data["email"]
         password = request.data["password"]
 
         user = User.objects.filter(email=email).first()
-
-        if user is None:
+        if not user:
             return Response({"error": "User not found!"}, status.HTTP_404_NOT_FOUND)
+
         if not user.check_password(password):
-            raise AuthenticationFailed({"error": "Incorrect password!"})
+            raise AuthenticationFailed("Incorrect password!")
 
-        refresh = RefreshToken.for_user(user)
+        refresh_token, access_token = generate_tokens_for_user(user)
 
-        return Response(
-            {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            }
-        )
+        return Response({
+            "refresh": refresh_token,
+            "access": access_token,
+        })
+
 
 
 class UserMeView(generics.RetrieveAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
 
     def get_object(self):
+        if not self.request.user.is_authenticated:
+            raise AuthenticationFailed('Authentication credentials were not provided.')
         return self.request.user
 
     @swagger_auto_schema(
         tags=['Authentication'],
-        operation_description="Этот ендпоинт предоставляет "
-                              "возможность получить информацию "
-                              "о текущем аутентифицированном пользователе. ",
+        operation_description="Этот эндпоинт позволяет получить информацию о текущем пользователе."
     )
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
@@ -128,23 +119,16 @@ class UserProfileUpdateView(generics.GenericAPIView):
 
     @swagger_auto_schema(
         tags=['Authentication'],
-        operation_description="Этот эндпоинт предоставляет "
-                              "возможность аутентифицированным "
-                              "пользователям обновить свой профиль, "
-                              "предоставив новые данные. После успешного "
-                              "обновления профиля, система возвращает "
-                              "сообщение об успешном обновлении.",
+        operation_description="Этот эндпоинт позволяет пользователю обновить свой профиль."
     )
     def put(self, request):
         user = request.user
-
-        serializer = UserProfileSerializer(user, data=request.data)
+        serializer = self.serializer_class(user, data=request.data)
 
         if serializer.is_valid():
             serializer.save()
-            return Response({'message': 'User updated successfully!'}, status.HTTP_200_OK)
-        else:
-            return Response({'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'message': 'User updated successfully!'}, status=status.HTTP_200_OK)
+        return Response({'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LogoutView(generics.GenericAPIView):
@@ -153,19 +137,13 @@ class LogoutView(generics.GenericAPIView):
 
     @swagger_auto_schema(
         tags=['Authentication'],
-        operation_description="Этот эндпоинт предоставляет "
-                              "возможность аутентифицированным "
-                              "пользователям обновить свой профиль, "
-                              "предоставив новые данные. После успешного "
-                              "обновления профиля, система возвращает "
-                              "сообщение об успешном обновлении.",
+        operation_description="Этот эндпоинт позволяет пользователю выйти из системы."
     )
     def post(self, request):
-        serializer = LogoutSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         refresh_token = serializer.validated_data["refresh_token"]
-
         try:
             token = RefreshToken(refresh_token)
             token.blacklist()
@@ -179,18 +157,9 @@ class ForgotPasswordView(generics.GenericAPIView):
 
     @swagger_auto_schema(
         tags=['Authentication'],
-        operation_description="Этот эндпоинт предназначен "
-                              "для пользователей, которые "
-                              "забыли свой пароль. Пользователь "
-                              "может запросить восстановление пароля, "
-                              "предоставив свой номер телефона. Система якобы "
-                              "отправит SMS с 4-значным кодом для восстановления "
-                              "пароля, но на самом деле код будет храниться на "
-                              "сервере для последующей проверки. После успешной "
-                              "отправки номера телефона "
-                              "система возвращает айди пользователя. \nКод подтверждения: 1991.",
+        operation_description="Этот эндпоинт позволяет пользователю запросить восстановление пароля."
     )
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email']
@@ -198,14 +167,17 @@ class ForgotPasswordView(generics.GenericAPIView):
                 user = User.objects.get(email=email)
             except User.DoesNotExist:
                 return Response({"error": "User with this email does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
             otp_code = OTP.generate_otp()
             OTP.objects.create(user=user, otp=otp_code)
-            # Send the OTP to the user's email
-            subject = 'Forgot Password OTP'
-            message = f'Your OTP is: {otp_code}'
-            from_email = settings.EMAIL_HOST_USER
-            recipient_list = [email]
-            send_mail(subject, message, from_email, recipient_list)
+
+            # Отправляем OTP на email пользователя
+            send_mail(
+                'Forgot Password OTP',
+                f'Your OTP is: {otp_code}',
+                settings.EMAIL_HOST_USER,
+                [email]
+            )
 
             return Response({"message": "OTP sent to your email."}, status=status.HTTP_200_OK)
 
@@ -217,14 +189,7 @@ class ConfirmCodeView(generics.GenericAPIView):
 
     @swagger_auto_schema(
         tags=['Authentication'],
-        operation_description="Этот эндпоинт позволяет "
-                              "подтвердить код подтверждения, "
-                              "который был отправлен на адрес "
-                              "электронной почты пользователя "
-                              "после успешной регистрации. После "
-                              "подтверждения кода, система выдает новый "
-                              "токен доступа (Access Token) и обновления "
-                              "(Refresh Token) для пользователя.",
+        operation_description="Этот эндпоинт подтверждает код, отправленный пользователю."
     )
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -234,18 +199,18 @@ class ConfirmCodeView(generics.GenericAPIView):
         try:
             confirmation_code = OTP.objects.get(otp=code)
         except OTP.DoesNotExist:
-            return Response({"error": "Invalid or already confirmed code."}, status=400)
+            return Response({"error": "Invalid or already confirmed code."}, status=status.HTTP_400_BAD_REQUEST)
 
         user = confirmation_code.user
         confirmation_code.delete()
 
-        refresh = RefreshToken.for_user(user)
+        refresh_token, access_token = generate_tokens_for_user(user)
 
         return Response({
             "message": "Code confirmed successfully.",
-            'user_id': str(user.id),
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
+            "user_id": str(user.id),
+            "refresh": refresh_token,
+            "access": access_token,
         })
 
 
@@ -255,24 +220,17 @@ class ChangeForgotPasswordView(generics.GenericAPIView):
 
     @swagger_auto_schema(
         tags=['Authentication'],
-        operation_description="Этот эндпоинт предоставляет пользователям"
-                              " возможность пользователям восстановить "
-                              "свой пароль. Пользователь должен предоставить "
-                              "новый пароль. После успешного восстановления пароля, пользователь "
-                              "получит сообщение о том, что пароль был успешно изменен.",
+        operation_description="Этот эндпоинт позволяет пользователю изменить свой пароль."
     )
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = self.request.user
-
+        user = request.user
         user.set_password(serializer.validated_data['password'])
         user.save()
 
-        return Response({
-            'message': 'The password has been successfully changed.'
-        }, status=status.HTTP_200_OK)
+        return Response({'message': 'The password has been successfully changed.'}, status=status.HTTP_200_OK)
 
 
 class ChangePasswordView(generics.UpdateAPIView):
@@ -281,21 +239,70 @@ class ChangePasswordView(generics.UpdateAPIView):
 
     @swagger_auto_schema(
         tags=['Authentication'],
-        operation_description="Этот эндпоинт предоставляет возможность "
-                              "зарегистрированным пользователям изменить "
-                              "свой пароль. Пользователь должен предоставить "
-                              "новый пароль. После успешной смены пароля, пользователь "
-                              "получит сообщение о том, что пароль был успешно изменен.",
+        operation_description="Этот эндпоинт позволяет пользователю сменить пароль."
     )
     def put(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = self.request.user
-
+        user = request.user
         user.set_password(serializer.validated_data['password'])
         user.save()
 
-        return Response({
-            'message': 'The password has been successfully changed.'
-        }, status=status.HTTP_200_OK)
+        return Response({'message': 'The password has been successfully changed.'}, status=status.HTTP_200_OK)
+
+
+class GoogleLogin(SocialLoginView):
+    adapter_class = GoogleOAuth2Adapter
+    serializer_class = SocialLoginSerializer
+
+    @swagger_auto_schema(
+        operation_description="Авторизация через Google и получение JWT токенов.",
+        request_body=SocialLoginSerializer,
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                description="Токены успешно получены",
+                examples={
+                    "application/json": {
+                        "access_token": "google_access_token_example",
+                        "refresh_token": "google_refresh_token_example"
+                    }
+                }
+            ),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(
+                description="Ошибка аутентификации",
+            ),
+        }
+    )
+    def get_response_data(self):
+        user = self.user  # Получаем пользователя
+        token = self.get_token(user)  # Получаем JWT токен
+        return Response({'access_token': token['access'], 'refresh_token': token['refresh']})
+
+
+class FacebookLogin(SocialLoginView):
+    adapter_class = FacebookOAuth2Adapter
+    serializer_class = SocialLoginSerializer
+
+    @swagger_auto_schema(
+        operation_description="Авторизация через Facebook и получение JWT токенов.",
+        request_body=SocialLoginSerializer,
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                description="Токены успешно получены",
+                examples={
+                    "application/json": {
+                        "access_token": "facebook_access_token_example",
+                        "refresh_token": "facebook_refresh_token_example"
+                    }
+                }
+            ),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(
+                description="Ошибка аутентификации",
+            ),
+        }
+    )
+    def get_response_data(self):
+        user = self.user  # Получаем пользователя
+        token = self.get_token(user)  # Получаем JWT токен
+        return Response({'access_token': token['access'], 'refresh_token': token['refresh']})
