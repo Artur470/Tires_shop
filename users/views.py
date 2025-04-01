@@ -6,6 +6,14 @@ from rest_framework import generics
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 from django.core.mail import send_mail
+from rest_framework.response import Response
+from rest_framework import status
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from dj_rest_auth.registration.views import SocialLoginView
+from .serializers import SocialLoginSerializer
+from .models import User  # Импортируем свою модель пользователя
+from .utils import generate_tokens_for_user  # Импортируем функцию генерации токенов
+import requests
 from drf_yasg.utils import swagger_auto_schema
 from dj_rest_auth.registration.views import SocialLoginView
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
