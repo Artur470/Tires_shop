@@ -3,16 +3,20 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import generics
+from django.utils.timezone import localtime
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 from django.core.mail import send_mail
 from rest_framework.response import Response
+from django.core.mail import send_mail
+from django.conf import settings
+from .serializers import SupportRequestSerializer, UserRegisterSerializer
 from rest_framework import status
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from dj_rest_auth.registration.views import SocialLoginView
 from .serializers import SocialLoginSerializer
-from .models import User  # Импортируем свою модель пользователя
-from .utils import generate_tokens_for_user  # Импортируем функцию генерации токенов
+from .models import User
+from .utils import generate_tokens_for_user
 import requests
 from drf_yasg.utils import swagger_auto_schema
 from dj_rest_auth.registration.views import SocialLoginView
@@ -45,7 +49,7 @@ from users.serializers import (
 from users.models import User, OTP
 from config import settings
 from dj_rest_auth.registration.views import SocialLoginView
-
+from rest_framework.views import APIView
 
 # Вспомогательная функция для генерации токенов
 def generate_tokens_for_user(user):
@@ -418,3 +422,50 @@ class FacebookLogin(SocialLoginView):
         user = self.user  # Получаем пользователя
         token = self.get_token(user)  # Получаем JWT токен
         return Response({'access_token': token['access'], 'refresh_token': token['refresh']})
+
+
+class SupportRequestView(APIView):
+    @swagger_auto_schema(
+        operation_summary="Отправка жалобы",
+        operation_description="Этот эндпоинт принимает жалобы от пользователей и отправляет их на email.",
+        request_body=SupportRequestSerializer,
+        responses={
+            200: openapi.Response("Ваша жалоба успешно отправлена!"),
+            400: openapi.Response("Ошибка валидации данных"),
+        },
+    )
+    def post(self, request):
+        serializer = SupportRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            support_request = serializer.save()  # Сохранение в БД
+
+            name = support_request.name
+            phone = support_request.phone
+            email = support_request.email
+            message = support_request.message
+            created_at = localtime(support_request.created_at).strftime("%Y-%m-%d %H:%M:%S")  # Форматируем дату
+
+            subject = f"🚗 TiresShop | Получена новая жалоба..."
+            body = f"""
+            🛒 *Магазин:* TiresShop
+            👤 *Имя:* {name}
+            📞 *Телефон:* {phone}
+            ✉️ *Email:* {email}
+            ⌛ *Время:* {created_at}
+            💬 *Сообщение:* 
+
+            {message}
+            ───────────────────
+            """
+
+            send_mail(
+                subject,
+                body,
+                settings.EMAIL_HOST_USER,  # Используем EMAIL_HOST_USER вместо DEFAULT_FROM_EMAIL
+                ["tiresshopkg@gmail.com"],
+                fail_silently=False,
+            )
+
+            return Response({"message": "Ваша жалоба успешно отправлена!"}, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

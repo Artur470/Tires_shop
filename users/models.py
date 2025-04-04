@@ -82,3 +82,19 @@ class OTP(models.Model):
         """Проверка, истек ли OTP-код"""
         time_threshold = timezone.now() - timezone.timedelta(minutes=5)
         return self.created_at < time_threshold
+
+
+
+class SupportRequest(models.Model):
+    name = models.CharField(max_length=100, verbose_name="Имя")
+    phone = models.CharField(max_length=20, verbose_name="Телефон")
+    email = models.EmailField(verbose_name="Email")
+    message = models.TextField(verbose_name="Сообщение")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+
+    def __str__(self):
+        return f"Заявка от {self.name} ({self.email})"
+
+    class Meta:
+        verbose_name = "Заявка в поддержку"
+        verbose_name_plural = "Заявки в поддержку"

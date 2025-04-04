@@ -194,13 +194,15 @@ CLOUDINARY_STORAGE = {
 }
 AUTH_USER_MODEL = 'users.User'
 
-# email settings
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = config("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
+
+# Добавь эту строку
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="no-reply@example.com")

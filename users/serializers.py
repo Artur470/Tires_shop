@@ -1,7 +1,8 @@
 from django.core.validators import RegexValidator
 from django.contrib.auth.hashers import check_password
 from rest_framework import serializers
-from users.models import User, OTP
+from users.models import User, OTP, SupportRequest
+
 import re
 
 
@@ -159,3 +160,10 @@ class SocialLoginSerializer(serializers.Serializer):
     id_token = serializers.CharField(
         help_text="Идентификатор пользователя, полученный через социальную сеть. Используется для получения информации о пользователе."
     )
+
+
+class SupportRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupportRequest
+        fields = ["name", "phone", "email", "message", "created_at"]
+        read_only_fields = ["created_at"]

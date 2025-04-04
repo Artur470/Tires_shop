@@ -11,6 +11,7 @@ from .views import (
     UserProfileUpdateView,
     UserMeView,
     GoogleLogin,
+    SupportRequestView,
     FacebookLogin,
 )
 
@@ -28,5 +29,8 @@ urlpatterns = [
     path('change-forgot-password/', ChangeForgotPasswordView.as_view(), name='change-forgot-password'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('profile/update/', UserProfileUpdateView.as_view(), name='profile-update'),
-    path('me/', UserMeView.as_view(), name='users-me')
+    path('me/', UserMeView.as_view(), name='users-me'),
+    path("support/", SupportRequestView.as_view(), name="support-request"),
+
+
 ]
