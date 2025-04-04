@@ -423,15 +423,29 @@ class FacebookLogin(SocialLoginView):
         token = self.get_token(user)  # Получаем JWT токен
         return Response({'access_token': token['access'], 'refresh_token': token['refresh']})
 
-
 class SupportRequestView(APIView):
     @swagger_auto_schema(
         operation_summary="Отправка жалобы",
         operation_description="Этот эндпоинт принимает жалобы от пользователей и отправляет их на email.",
         request_body=SupportRequestSerializer,
         responses={
-            200: openapi.Response("Ваша жалоба успешно отправлена!"),
-            400: openapi.Response("Ошибка валидации данных"),
+            200: openapi.Response(
+                description="Ваша жалоба успешно отправлена!",
+                examples={
+                    'application/json': {
+                        "message": "Ваша жалоба успешно отправлена!",
+                        "created_at": "2025-04-04 14:23:01"  # Пример форматированной даты
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Ошибка валидации данных",
+                examples={
+                    'application/json': {
+                        "message": "Ошибка валидации данных"
+                    }
+                }
+            ),
         },
     )
     def post(self, request):
@@ -466,6 +480,9 @@ class SupportRequestView(APIView):
                 fail_silently=False,
             )
 
-            return Response({"message": "Ваша жалоба успешно отправлена!"}, status=status.HTTP_200_OK)
+            return Response(
+                {"message": "Ваша жалоба успешно отправлена!", "created_at": created_at},
+                status=status.HTTP_200_OK
+            )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
