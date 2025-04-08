@@ -84,13 +84,26 @@ class ProductSerializerHomepage(serializers.ModelSerializer):
 
         # Округляем до ближайшей половины
         return round(average_rating * 2) / 2
+
 class FavoriteProductListSerializer(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id')
+    image = serializers.SerializerMethodField()
+    season = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = ['product_Id', 'image', 'price', 'season', 'title', 'in_stock', 'is_favorite']
 
+    def get_image(self, obj):
+        return obj.image.url if obj.image else None
+
+    def get_season(self, obj):
+        if obj.season:
+            return {
+                "label": obj.season.label,
+                "value": obj.season.value
+            }
+        return None
 
 class CommentSerializer(serializers.ModelSerializer):
     product_id = serializers.IntegerField()  # Изменяем на product_id
