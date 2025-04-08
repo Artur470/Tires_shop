@@ -481,8 +481,8 @@ class CategoriesListView(generics.ListCreateAPIView):
 
 
 class FavoriteProduct(APIView):
-    # permission_classes = [IsAuthenticated]
-    # authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
     """
     Получение списка избранных продуктов и обновление статуса "избранного".
     """
