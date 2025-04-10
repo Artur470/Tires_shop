@@ -7,6 +7,7 @@ from rest_framework.generics import GenericAPIView
 from django.db.models import Count, Avg, F
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.db.models import ExpressionWrapper, F, DecimalField
 
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers
@@ -33,7 +34,7 @@ from .filters import ProductFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
 from rest_framework.pagination import LimitOffsetPagination
-
+from django.db.models import Case, When, F, DecimalField
 from drf_yasg import openapi
 from rest_framework.response import Response
 from rest_framework import status
@@ -787,15 +788,15 @@ class ProductListView(generics.ListAPIView):
     ordering = ['id']
 
     def get_queryset(self):
-        """
-        Получаем отфильтрованные товары, если они были сохранены в сессии.
-        """
         queryset = Product.objects.all()
         product_filters = self.request.session.get('product_filters')
-        if product_filters:
-            queryset = ProductFilterall(product_filters, queryset=queryset).qs
-        return queryset
 
+        if product_filters:
+            # 🔧 Удалена ручная сортировка — теперь вся логика внутри ProductFilter
+            filterset = ProductFilterall(product_filters, queryset=queryset)
+            queryset = filterset.qs
+
+        return queryset
     @swagger_auto_schema(
         operation_summary="Получение списка всех товаров",
         operation_description="Этот эндпоинт возвращает список товаров, применяя сохраненные фильтры из `/product/filter/`. Поддерживает пагинацию, поиск по названию и сортировку по цене.",
@@ -926,19 +927,17 @@ class ProductListView(generics.ListAPIView):
         """
         Обрабатывает GET-запрос и применяет фильтрацию.
         """
-        products = self.get_queryset()
-        total_count = products.count()  # Подсчет всех товаров
+        products = self.get_queryset()  # Получаем товары с фильтрацией
 
+        # ✅ Применяем пагинацию
         page = self.paginate_queryset(products)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            response = self.get_paginated_response(serializer.data)
-            response.data["total_count"] = total_count  # Добавляем total_count в ответ с пагинацией
-            return response
+            return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(products, many=True)
         return Response({
-            'total_count': total_count,  # Добавляем общее количество товаров
+            'total_count': products.count(),
             'results': serializer.data
         })
 
@@ -996,37 +995,87 @@ class ProductListView(generics.ListAPIView):
             {"product_id": product.id, "is_favorite": product.is_favorite},
             status=status.HTTP_200_OK
         )
-class ProductFilterView(generics.ListAPIView):
-    queryset = Product.objects.all()
-    serializer_class = ProductSerializerll
-    filter_backends = [DjangoFilterBackend]
-    filterset_class = ProductFilterall  # Используем кастомный фильтр
 
-    def list(self, request, *args, **kwargs):
-        """
-        Фильтрация товаров и сохранение их ID в сессии.
-        """
-        # ✅ Применяем фильтр
-        filtered_products = ProductFilterall(request.GET, queryset=self.queryset).qs
+
+
+
+class ProductFilterView(APIView):
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_summary="Получить значения для фильтров",
+        operation_description="Возвращает все возможные значения для фильтрации товаров.",
+        responses={200: openapi.Response("Успешный ответ")}
+    )
+    def get(self, request, *args, **kwargs):
+        return Response({
+            "filter_data": self.get_filter_data()
+        }, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        operation_summary="Применить фильтры",
+        operation_description="Применяет фильтры к товарам и сохраняет отфильтрованные ID в сессии.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "season": openapi.Schema(type=openapi.TYPE_STRING, example="summer"),
+                "manufacturer": openapi.Schema(type=openapi.TYPE_STRING, example="Michelin"),
+                "tire_type": openapi.Schema(type=openapi.TYPE_STRING, example="suv"),
+                "condition": openapi.Schema(type=openapi.TYPE_STRING, example="new"),
+                "min_price": openapi.Schema(type=openapi.TYPE_NUMBER, example=2000),
+                "max_price": openapi.Schema(type=openapi.TYPE_NUMBER, example=5000),
+                "min_load_index": openapi.Schema(type=openapi.TYPE_NUMBER, example=80),
+                "max_load_index": openapi.Schema(type=openapi.TYPE_NUMBER, example=100),
+                "min_noise_level": openapi.Schema(type=openapi.TYPE_NUMBER, example=68),
+                "max_noise_level": openapi.Schema(type=openapi.TYPE_NUMBER, example=75),
+                "width": openapi.Schema(type=openapi.TYPE_STRING, example="205"),
+                "profile": openapi.Schema(type=openapi.TYPE_STRING, example="55"),
+                "diameter": openapi.Schema(type=openapi.TYPE_STRING, example="16"),
+                "speed_index": openapi.Schema(type=openapi.TYPE_STRING, example="H"),
+                "runflat": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=False),
+                "off_road": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=True),
+                "promotion": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=True),
+                "sort_by_price": openapi.Schema(type=openapi.TYPE_STRING, example="cheap")
+            }
+        ),
+        responses={200: openapi.Response("Фильтрация применена и сохранена")}
+    )
+    def post(self, request, *args, **kwargs):
+        filters = request.data
+        filtered_products = ProductFilterall(filters, queryset=Product.objects.all()).qs
         product_ids = list(filtered_products.values_list('id', flat=True))
 
-        # ✅ Сохраняем отфильтрованные товары в сессии
         request.session["filtered_product_ids"] = product_ids
-        request.session["product_filters"] = request.GET.dict()
+        request.session["product_filters"] = filters
         request.session.modified = True
-        product_filters = self.request.session.get("product_filters")
 
+        return Response({
+            "message": "Фильтрация сохранена",
+            "filtered_product_ids": product_ids,
+            "filter_data": self.get_filter_data()
+        }, status=status.HTTP_200_OK)
 
-        # ✅ Список доступных фильтров
-        filter_data = {
+    def get_filter_data(self):
+        products_with_final_price = Product.objects.annotate(
+            final_price=Case(
+                When(promotion__gt=0, then=F("promotion")),
+                default=F("price"),
+                output_field=DecimalField()
+            )
+        )
+
+        min_final_price = products_with_final_price.aggregate(min_price=Min("final_price"))["min_price"]
+        max_final_price = products_with_final_price.aggregate(max_price=Max("final_price"))["max_price"]
+
+        return {
             "seasons": Product.objects.values_list("season__value", flat=True).distinct(),
             "manufacturers": Product.objects.values_list("manufacturer", flat=True).distinct(),
             "tire_types": Product.objects.values_list("tire_type__value", flat=True).distinct(),
             "conditions": Product.objects.values_list("condition__value", flat=True).distinct(),
             "fuel_efficiency": dict(Product.FUEL_EFFICIENCY_CHOICES),
             "wet_grip": dict(Product.WET_GRIP_CHOICES),
-            "min_price": Product.objects.aggregate(min_price=Min("price"))["min_price"],
-            "max_price": Product.objects.aggregate(max_price=Max("price"))["max_price"],
+            "min_price": min_final_price,
+            "max_price": max_final_price,
             "min_load_index": Product.objects.aggregate(min_load=Min("load_index"))["min_load"],
             "max_load_index": Product.objects.aggregate(max_load=Max("load_index"))["max_load"],
             "min_noise_level": Product.objects.aggregate(min_noise=Min("external_noise_level"))["min_noise"],
@@ -1043,15 +1092,12 @@ class ProductFilterView(generics.ListAPIView):
                     default=Value(False),
                     output_field=BooleanField()
                 )
-            ).values_list('is_promotion_active', flat=True).distinct()
+            ).values_list('is_promotion_active', flat=True).distinct(),
+            "sort_by_price": [
+                {"value": "cheap", "label": "Сначала дешевые"},
+                {"value": "expensive", "label": "Сначала дорогие"}
+            ]
         }
-
-        return Response({
-            "message": "Фильтрация сохранена",
-            "filtered_product_ids": product_ids,  # ✅ Оставил эту часть
-            "filter_data": filter_data  # ✅ Оставил эту часть
-        }, status=status.HTTP_200_OK)
-
 class ProductDetailView(generics.RetrieveAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductDetailSerializer

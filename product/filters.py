@@ -1,10 +1,13 @@
 import django_filters
 from .models import Product, BodyType
-
+from django.db.models import ExpressionWrapper, F, fields
+from django.db.models.functions import Coalesce
+from django.db.models import DecimalField
+from django.db.models import Case, When, F, DecimalField
 # Словарь соответствия: ключ – value (англ.), значение – label (рус.)
 from django.db.models import Q
 import django_filters
-
+from django.db.models import Case, When, Value, F, DecimalField
 BODY_TYPE_CHOICES = {
     "sedan": "Седан",
     "hatchback": "Хэтчбек",
@@ -82,8 +85,8 @@ class ProductFilterall(django_filters.FilterSet):
     condition = django_filters.CharFilter(field_name='condition__value', lookup_expr='exact')
 
     # Для числовых фильтров
-    min_price = django_filters.NumberFilter(field_name='price', lookup_expr='gte')
-    max_price = django_filters.NumberFilter(field_name='price', lookup_expr='lte')
+    min_price = django_filters.NumberFilter(method='filter_min_price')
+    max_price = django_filters.NumberFilter(method='filter_max_price')
     min_load_index = django_filters.NumberFilter(field_name='load_index', lookup_expr='gte')
     max_load_index = django_filters.NumberFilter(field_name='load_index', lookup_expr='lte')
     min_noise_level = django_filters.NumberFilter(field_name='external_noise_level', lookup_expr='gte')
@@ -101,11 +104,11 @@ class ProductFilterall(django_filters.FilterSet):
 
     # Кастомный фильтр для поля promotion (проверка на наличие акции)
     promotion = django_filters.BooleanFilter(field_name='promotion', method='filter_promotion')
-
+    sort_by_price = django_filters.CharFilter(method='filter_sort_by_price')
 
     class Meta:
         model = Product
-        fields = ['season', 'manufacturer', 'tire_type', 'condition', 'min_price', 'max_price',
+        fields = ['season', 'manufacturer', 'tire_type', 'condition',
                   'min_load_index', 'max_load_index', 'min_noise_level', 'max_noise_level',
                   'width', 'profile', 'diameter', 'speed_index', 'runflat', 'off_road', 'promotion']
 
@@ -126,3 +129,36 @@ class ProductFilterall(django_filters.FilterSet):
         if value == "all_season":
             return queryset.filter(season__value="all_season")  # Фильтруем только товары с сезоном "все сезоны"
         return queryset.filter(season__value=value)  # Обычная фильтрация для других сезонов
+
+    def filter_sort_by_price(self, queryset, name, value):
+        # 👉 финальная цена: если есть promotion, то она, иначе обычная price
+        queryset = queryset.annotate(
+            final_price=Case(
+                When(promotion__isnull=False, then=F("promotion")),
+                default=F("price"),
+                output_field=DecimalField()
+            )
+        )
+
+        if value == "cheap":
+            return queryset.order_by("final_price")
+        elif value == "expensive":
+            return queryset.order_by("-final_price")
+        return queryset
+    def filter_min_price(self, queryset, name, value):
+        return queryset.annotate(
+            final_price=Case(
+                When(promotion__gt=0, then=F("promotion")),
+                default=F("price"),
+                output_field=DecimalField()
+            )
+        ).filter(final_price__gte=value)
+
+    def filter_max_price(self, queryset, name, value):
+        return queryset.annotate(
+            final_price=Case(
+                When(promotion__gt=0, then=F("promotion")),
+                default=F("price"),
+                output_field=DecimalField()
+            )
+        ).filter(final_price__lte=value)
