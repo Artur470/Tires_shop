@@ -1277,7 +1277,8 @@ class ProductCommentListView(generics.ListAPIView):
 
     def get_queryset(self):
         product_id = self.kwargs["product_id"]
-        return Comment.objects.filter(product_id=product_id)
+        # Получаем все комментарии для данного продукта и сортируем их по дате (новые комментарии первыми)
+        return Comment.objects.filter(product_id=product_id).order_by('-created_at')
 class NewsCustomLimitOffsetPagination(LimitOffsetPagination):
     default_limit = 6
     max_limit = 20
