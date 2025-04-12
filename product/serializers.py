@@ -1,9 +1,10 @@
 
 from rest_framework import serializers
-from .models import Product, Category, Comment
+from .models import Product, Category, Comment, News
 from drf_yasg import openapi
 from django.db.models import Sum
 from .utils import round_to_half
+from product import models  # Тогда обращаться так: models.MyModel
 
 from drf_yasg.utils import swagger_auto_schema
 
@@ -89,10 +90,13 @@ class FavoriteProductListSerializer(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id')
     image = serializers.SerializerMethodField()
     season = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField(help_text="средний статистический рейтинг")
+    comments_count = serializers.IntegerField(source="comment_set.count", read_only=True,
+                                              help_text="количество комментариев")
 
     class Meta:
         model = Product
-        fields = ['product_Id', 'image', 'price', 'season', 'title', 'in_stock', 'is_favorite']
+        fields = ['product_Id', 'image', 'price', 'season', 'title', 'in_stock', 'is_favorite', 'average_rating', 'comments_count']
 
     def get_image(self, obj):
         return obj.image.url if obj.image else None
@@ -104,6 +108,22 @@ class FavoriteProductListSerializer(serializers.ModelSerializer):
                 "value": obj.season.value
             }
         return None
+
+
+
+
+    def get_comments_count(self, obj):
+        return obj.comments.count()
+
+    def get_average_rating(self, obj):
+        comments = obj.comment_set.all()
+        from .utils import round_to_half
+        if not comments:
+            return 0.0
+        total_rating = sum(comment.rating for comment in comments)
+        return round_to_half(total_rating / len(comments))
+
+
 
 class CommentSerializer(serializers.ModelSerializer):
     product_id = serializers.IntegerField()  # Изменяем на product_id
@@ -192,3 +212,29 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             return 0.0
         total_rating = sum(comment.rating for comment in comments)
         return round_to_half(total_rating / len(comments))
+
+
+
+
+
+class NewsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = News
+        fields = ['news_image', 'news_title', 'news_time',]
+
+
+class NewsDetailSerializer(serializers.ModelSerializer):
+    related_news = serializers.SerializerMethodField()
+
+    class Meta:
+        model = News
+        fields = ['id', 'news_image', 'news_title', 'news_time', 'news_description', 'related_news']
+
+    def get_related_news(self, obj):
+        related_news = News.objects.filter(
+            models.Q(news_title__icontains=obj.news_title) |
+            models.Q(news_description__icontains=obj.news_description)
+        ).exclude(id=obj.id).distinct()[:5]
+
+        return NewsSerializer(related_news, many=True).data
+

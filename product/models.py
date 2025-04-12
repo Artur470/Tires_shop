@@ -136,3 +136,16 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"Comment for {self.product.name} - {self.rating}★"
+
+
+
+
+class News(models.Model):
+    news_image = CloudinaryField('image')
+    news_title = models.CharField(max_length=255)
+    news_time = models.DateTimeField()
+    news_description = models.TextField()
+
+
+    def __str__(self):
+        return self.news_title

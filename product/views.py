@@ -6,9 +6,10 @@ from rest_framework import generics
 from rest_framework.generics import GenericAPIView
 from django.db.models import Count, Avg, F
 from rest_framework.permissions import IsAuthenticated
+
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db.models import ExpressionWrapper, F, DecimalField
-
+from rest_framework.pagination import LimitOffsetPagination
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers
 from decimal import Decimal
@@ -43,8 +44,14 @@ from .models import Category
 from .serializers import CategoriesSerializer
 import logging
 from rest_framework.views import APIView
-from .models import Product, Category, Comment, BodyType
-from .serializers import ProductSerializerHomepage, CategoriesSerializer,  FavoriteProductListSerializer  , CommentSerializer, ProductSerializerll, ProductDetailSerializer
+from .models import Product, Category, Comment, BodyType, News
+from .serializers import (ProductSerializerHomepage, CategoriesSerializer,
+                          FavoriteProductListSerializer,
+                          CommentSerializer,
+                          ProductSerializerll,
+                          ProductDetailSerializer,
+                          NewsDetailSerializer,
+                          NewsSerializer)
 from rest_framework.response import Response
 from rest_framework import status
 from django_filters.rest_framework import DjangoFilterBackend
@@ -482,8 +489,10 @@ class CategoriesListView(generics.ListCreateAPIView):
 
 
 class FavoriteProduct(APIView):
+    serializers = FavoriteProductListSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+
     """
     Получение списка избранных продуктов и обновление статуса "избранного".
     """
@@ -1269,3 +1278,37 @@ class ProductCommentListView(generics.ListAPIView):
     def get_queryset(self):
         product_id = self.kwargs["product_id"]
         return Comment.objects.filter(product_id=product_id)
+class NewsCustomLimitOffsetPagination(LimitOffsetPagination):
+    default_limit = 6
+    max_limit = 20
+
+    def get_paginated_response(self, data):
+        return Response({
+            'NewsItem': data
+        })
+
+
+class NewsListView(APIView):
+    pagination_class = NewsCustomLimitOffsetPagination
+
+    def get(self, request):
+        news = News.objects.all().order_by('-news_time')
+        paginator = self.pagination_class()
+        paginated_news = paginator.paginate_queryset(news, request, view=self)
+        serializer = NewsSerializer(paginated_news, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+class NewsDetailView(generics.RetrieveAPIView):
+    queryset = News.objects.all()
+    serializer_class = NewsDetailSerializer
+class NewsCreateView(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = NewsSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
