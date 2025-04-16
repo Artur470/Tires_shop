@@ -6,7 +6,7 @@ from rest_framework import generics
 from rest_framework.generics import GenericAPIView
 from django.db.models import Count, Avg, F
 from rest_framework.permissions import IsAuthenticated
-
+from rest_framework.parsers import MultiPartParser, JSONParser
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db.models import ExpressionWrapper, F, DecimalField
 from rest_framework.pagination import LimitOffsetPagination
@@ -25,7 +25,7 @@ from .serializers import  CommentSerializer
 from .models import Product, Comment
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.core.exceptions import ValidationError
@@ -75,7 +75,7 @@ logger = logging.getLogger(__name__)
 import logging
 logger = logging.getLogger(__name__)
 
-
+from drf_yasg.utils import swagger_auto_schema
 
 class ProductAutocompleteSerializer(serializers.Serializer):
     id = serializers.IntegerField()
@@ -1281,7 +1281,7 @@ class ProductCommentListView(generics.ListAPIView):
         return Comment.objects.filter(product_id=product_id).order_by('-created_at')
 class NewsCustomLimitOffsetPagination(LimitOffsetPagination):
     default_limit = 6
-    max_limit = 20
+    max_limit = None
 
     def get_paginated_response(self, data):
         return Response({
@@ -1292,6 +1292,33 @@ class NewsCustomLimitOffsetPagination(LimitOffsetPagination):
 class NewsListView(APIView):
     pagination_class = NewsCustomLimitOffsetPagination
 
+    @swagger_auto_schema(
+        operation_description="Получить список новостей",
+        responses={
+            200: openapi.Response(
+                description="Список новостей",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'NewsItem': openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                    'news_image': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'news_title': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'news_time': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'news_description': openapi.Schema(type=openapi.TYPE_STRING),
+                                }
+                            )
+                        )
+                    }
+                )
+            )
+        }
+    )
+
     def get(self, request):
         news = News.objects.all().order_by('-news_time')
         paginator = self.pagination_class()
@@ -1300,13 +1327,79 @@ class NewsListView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 
-class NewsDetailView(generics.RetrieveAPIView):
-    queryset = News.objects.all()
-    serializer_class = NewsDetailSerializer
+class NewsDetailView(APIView):
+
+
+
+    @swagger_auto_schema(
+        operation_description="Получить подробную информацию о новости по ID",
+        responses={
+            200: openapi.Response(
+                description="Детали новости",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'news_image': openapi.Schema(type=openapi.TYPE_STRING),
+                        'news_title': openapi.Schema(type=openapi.TYPE_STRING),
+                        'news_time': openapi.Schema(type=openapi.TYPE_STRING),
+                        'news_description': openapi.Schema(type=openapi.TYPE_STRING),
+                    }
+                )
+            ),
+            404: openapi.Response(description="Новость не найдена")
+        }
+    )
+    def get(self, request, pk):
+        news = get_object_or_404(News, pk=pk)
+        serializer = NewsDetailSerializer(news)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class NewsCreateView(APIView):
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, JSONParser)
     permission_classes = [AllowAny]
 
+    @swagger_auto_schema(
+        operation_description="Создание новости",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['news_title', 'news_time', 'news_description'],
+            properties={
+                'news_title': openapi.Schema(type=openapi.TYPE_STRING, description="Заголовок новости", maxLength=255),
+                'news_time': openapi.Schema(type=openapi.TYPE_STRING, description="Время новости",
+                                            format=openapi.FORMAT_DATETIME),
+                'news_description': openapi.Schema(type=openapi.TYPE_STRING, description="Описание новости",
+                                                   minLength=1),
+                'news_image': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_BINARY,
+                                             description="Изображение новости"),  # для загрузки файла
+            },
+        ),
+        responses={
+            201: openapi.Response(
+                description="Новость успешно создана",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID новости", readOnly=True),
+                        'news_image': openapi.Schema(type=openapi.TYPE_STRING, description="Изображение новости"),
+                        'news_title': openapi.Schema(type=openapi.TYPE_STRING, description="Заголовок новости"),
+                        'news_time': openapi.Schema(type=openapi.TYPE_STRING, description="Время новости"),
+                        'news_description': openapi.Schema(type=openapi.TYPE_STRING, description="Описание новости"),
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Ошибки при создании новости",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description="Сообщение об ошибке")
+                    }
+                )
+            )
+        }
+    )
     def post(self, request):
         serializer = NewsSerializer(data=request.data)
         if serializer.is_valid():

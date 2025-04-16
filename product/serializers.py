@@ -5,7 +5,7 @@ from drf_yasg import openapi
 from django.db.models import Sum
 from .utils import round_to_half
 from product import models  # Тогда обращаться так: models.MyModel
-
+from django.db.models import Q
 from drf_yasg.utils import swagger_auto_schema
 
 # Словарь для перевода с русского на английский
@@ -220,8 +220,10 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 class NewsSerializer(serializers.ModelSerializer):
     class Meta:
         model = News
-        fields = ['news_image', 'news_title', 'news_time',]
-
+        fields = ["id", "news_image", "news_title", "news_time", "news_description"]
+        extra_kwargs = {
+            "news_description": {"write_only": True}
+        }
 
 class NewsDetailSerializer(serializers.ModelSerializer):
     related_news = serializers.SerializerMethodField()
@@ -232,8 +234,8 @@ class NewsDetailSerializer(serializers.ModelSerializer):
 
     def get_related_news(self, obj):
         related_news = News.objects.filter(
-            models.Q(news_title__icontains=obj.news_title) |
-            models.Q(news_description__icontains=obj.news_description)
+            Q(news_title__icontains=obj.news_title) |
+            Q(news_description__icontains=obj.news_description)
         ).exclude(id=obj.id).distinct()[:5]
 
         return NewsSerializer(related_news, many=True).data

@@ -141,9 +141,9 @@ class Comment(models.Model):
 
 
 class News(models.Model):
-    news_image = CloudinaryField('image')
+    news_image = CloudinaryField('image', null=True, blank=True)
     news_title = models.CharField(max_length=255)
-    news_time = models.DateTimeField()
+    news_time = models.DateTimeField(auto_now_add=True)
     news_description = models.TextField()
 
 
