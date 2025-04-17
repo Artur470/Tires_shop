@@ -50,6 +50,11 @@ from users.models import User, OTP
 from config import settings
 from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework.views import APIView
+from rest_framework.pagination import LimitOffsetPagination
+from cart.models import OrderItem, Order
+from rest_framework.exceptions import NotFound
+from django.shortcuts import get_object_or_404
+from cart.models import Cart
 
 # Вспомогательная функция для генерации токенов
 def generate_tokens_for_user(user):
@@ -64,6 +69,16 @@ class TokenRefreshView(TokenRefreshView):
     def post(self, *args, **kwargs):
         return super().post(*args, **kwargs)
 
+
+
+class CustomOrderPagination(LimitOffsetPagination):
+    default_limit = 3
+    max_limit = None
+
+    def get_paginated_response(self, data):
+        return Response({
+            'UserMe': data
+        })
 
 class UserRegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -164,19 +179,195 @@ class UserMeView(generics.RetrieveAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-
-    def get_object(self):
-        if not self.request.user.is_authenticated:
-            raise AuthenticationFailed('Authentication credentials were not provided.')
-        return self.request.user
+    pagination_class = CustomOrderPagination
 
     @swagger_auto_schema(
         tags=['Authentication'],
-        operation_description="Этот эндпоинт позволяет получить информацию о текущем пользователе."
+        operation_summary="Получить текущего пользователя и историю заказов (с кастомной пагинацией)",
+        operation_description="""
+        Этот эндпоинт возвращает информацию о текущем пользователе и историю его заказов.
+
+        📌 Пагинация:
+        - Используется кастомная `LimitOffsetPagination`
+        - По умолчанию: `limit=3`
+        - Пример: `GET /user/me/?limit=3&offset=3`
+        """,
+        manual_parameters=[
+            openapi.Parameter('limit', openapi.IN_QUERY, description="Сколько заявок вернуть",
+                              type=openapi.TYPE_INTEGER),
+            openapi.Parameter('offset', openapi.IN_QUERY, description="Смещение по списку заявок",
+                              type=openapi.TYPE_INTEGER),
+        ],
+        responses={
+            200: openapi.Response(
+                description="Успешный ответ с обёрткой 'UserMe', содержащей данные пользователя и историю заявок",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "UserMe": openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                "user": openapi.Schema(
+                                    type=openapi.TYPE_OBJECT,
+                                    description="Информация о пользователе",
+                                    properties={
+                                        "id": openapi.Schema(type=openapi.TYPE_INTEGER),
+                                        "email": openapi.Schema(type=openapi.TYPE_STRING),
+                                        "username": openapi.Schema(type=openapi.TYPE_STRING),
+                                        "phone": openapi.Schema(type=openapi.TYPE_STRING),
+                                    }
+                                ),
+                                "order_history": openapi.Schema(
+                                    type=openapi.TYPE_ARRAY,
+                                    description="История заявок пользователя (максимум 3 заявки на страницу)",
+                                    items=openapi.Items(
+                                        type=openapi.TYPE_OBJECT,
+                                        properties={
+                                            "id_order": openapi.Schema(type=openapi.TYPE_INTEGER),
+                                            "total_price": openapi.Schema(type=openapi.TYPE_NUMBER,
+                                                                          format=openapi.FORMAT_FLOAT),
+                                            "date_order": openapi.Schema(type=openapi.TYPE_STRING,
+                                                                         format=openapi.FORMAT_DATETIME),
+                                        }
+                                    )
+                                )
+                            }
+                        )
+                    }
+                )
+            ),
+            401: "Unauthorized"
+        }
     )
     def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
+        user = request.user
+        if not user.is_authenticated:
+            raise AuthenticationFailed('Authentication credentials were not provided.')
 
+        cart = get_object_or_404(Cart, user=user, ordered=False)
+
+        user_orders = Order.objects.filter(user=user, applications=True) \
+            .prefetch_related('items__product') \
+            .order_by('-created_at')
+
+        paginator = self.pagination_class()
+        paginated_orders = paginator.paginate_queryset(user_orders, request, view=self)
+
+        history = []
+
+        for order in paginated_orders:
+            total_price = 0
+
+            for item in order.items.all():  # Предполагается: order.items -> CartItem
+                product = item.product
+                price = product.promotion if product.promotion else product.price
+                total_price += price * item.count
+
+            history.append({
+                "id_order": order.id,
+                "total_price": float(total_price),
+                "date_order": order.created_at,
+            })
+
+        user_data = self.get_serializer(user).data
+
+        response_data = {
+            "user": user_data,
+            "order_history": history
+        }
+
+        return paginator.get_paginated_response(response_data)
+
+class UserApplicationsDetail(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    @swagger_auto_schema(
+        operation_summary="Получить детали заявки по ID",
+        operation_description="Возвращает детальную информацию о заявке данного пользавателя",
+        responses={
+            200: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    "order_id": openapi.Schema(type=openapi.TYPE_INTEGER, description="ID заявки"),
+                    "created_at": openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_DATETIME,
+                                                 description="Дата создания заказа"),
+                    "total_quantity": openapi.Schema(type=openapi.TYPE_INTEGER,
+                                                     description="Общее количество всех количеств"),
+                    "sub_total": openapi.Schema(type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT,
+                                                description="Сумма всех товаров по обычным ценам"),
+                    "promotion_total": openapi.Schema(type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT,
+                                                      description="Сумма всех товаров, только по акции "),
+                    "total_price": openapi.Schema(type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT,
+                                                  description="Итоговая сумма заказа"),
+                    "items": openapi.Schema(
+                        type=openapi.TYPE_ARRAY,
+                        description="Список товаров в заказе",
+                        items=openapi.Items(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                "product_name": openapi.Schema(type=openapi.TYPE_STRING, description="Название товара"),
+                                "price": openapi.Schema(type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT,
+                                                        description="Общая цена за товар с учетом акции (price * count)"),
+                                "count": openapi.Schema(type=openapi.TYPE_INTEGER,
+                                                        description="Количество данного товара в заказе")
+                            }
+                        )
+                    )
+                }
+            ),
+            404: "Order not found",
+            401: "Unauthorized"
+        }
+    )
+    def get(self, request, order_id):
+        user = request.user
+
+        order = Order.objects.filter(id=order_id, user=user, applications=True).first()
+        if not order:
+            raise NotFound("Order not found")
+
+        order_items = OrderItem.objects.filter(order=order).select_related('product')
+
+        items_data = []
+        total_price = 0
+        total_quantity = 0
+        sub_total = 0
+        promotion_total = 0
+
+        for item in order_items:
+            product = item.product
+            regular_price = product.price
+            has_promo = product.promotion is not None
+            promo_price = product.promotion if has_promo else regular_price
+
+            line_sub_total = regular_price * item.count
+            line_total = promo_price * item.count
+
+            total_quantity += item.count
+            sub_total += line_sub_total
+            total_price += line_total
+
+            if has_promo:
+                promotion_total += product.promotion * item.count
+
+            items_data.append({
+                "product_name": product.title,
+                "price": float(line_total),
+                "count": item.count
+            })
+
+        return Response({
+            "order_id": order.id,
+            "created_at": order.created_at,
+
+            "total_quantity": total_quantity,
+            "sub_total": float(sub_total),
+            "promotion_total": float(promotion_total),
+            "total_price": float(total_price),
+            "items": items_data,
+
+        })
 
 class UserProfileUpdateView(generics.GenericAPIView):
     serializer_class = UserProfileSerializer
@@ -486,7 +677,4 @@ class SupportRequestView(APIView):
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-
 

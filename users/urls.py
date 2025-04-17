@@ -13,6 +13,7 @@ from .views import (
     GoogleLogin,
     SupportRequestView,
     FacebookLogin,
+    UserApplicationsDetail
 )
 
 
@@ -31,6 +32,11 @@ urlpatterns = [
     path('profile/update/', UserProfileUpdateView.as_view(), name='profile-update'),
     path('me/', UserMeView.as_view(), name='users-me'),
     path("support/", SupportRequestView.as_view(), name="support-request"),
+    path('me/applications/<int:order_id>/', UserApplicationsDetail.as_view(), name='Applications-detail'),
 
 
 ]
+
+
+
+

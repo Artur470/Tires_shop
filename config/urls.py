@@ -26,6 +26,8 @@ urlpatterns = [
     path('product/', include("product.urls")),
     path('users/', include("users.urls")),
 
+    path('cart/', include("cart.urls")),
+
     # Swagger
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='swagger-docs'),
     path('swagger.json/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
