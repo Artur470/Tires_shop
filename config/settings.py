@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 import os
 import config
 from decouple import config
+from corsheaders.defaults import default_headers, default_methods
 
 
 load_dotenv()  # take environment variables from .env.
@@ -99,7 +100,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
-
+CORS_ALLOW_CREDENTIALS = True
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
@@ -209,7 +210,7 @@ EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="no-reply@example.com")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 
 CORS_ALLOWED_ORIGINS = [
-
+    "http://localhost:3000",
     "https://tires-shop-test-jnpy.onrender.com",  # Если фронтенд развернут
 ]
 # Default primary key field type
@@ -222,6 +223,12 @@ CORS_ALLOW_METHODS = [
     "POST",
     "OPTIONS",
 ]
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'Authorization',
+    'X-CSRFToken',
+    'X-Requested-With',
+]
+CORS_ALLOW_METHODS = list(default_methods)
 
 AUTHENTICATION_BACKENDS = (
     # 'social_core.backends.google.GoogleOAuth2',
