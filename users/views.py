@@ -244,7 +244,7 @@ class UserMeView(generics.RetrieveAPIView):
         if not user.is_authenticated:
             raise AuthenticationFailed('Authentication credentials were not provided.')
 
-        cart = get_object_or_404(Cart, user=user, ordered=False)
+
 
         user_orders = Order.objects.filter(user=user, applications=True) \
             .prefetch_related('items__product') \
@@ -306,7 +306,7 @@ class UserApplicationsDetail(APIView):
                         items=openapi.Items(
                             type=openapi.TYPE_OBJECT,
                             properties={
-                                "product_name": openapi.Schema(type=openapi.TYPE_STRING, description="Название товара"),
+                                "product_title": openapi.Schema(type=openapi.TYPE_STRING, description="Название товара"),
                                 "price": openapi.Schema(type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT,
                                                         description="Общая цена за товар с учетом акции (price * count)"),
                                 "count": openapi.Schema(type=openapi.TYPE_INTEGER,
@@ -352,7 +352,7 @@ class UserApplicationsDetail(APIView):
                 promotion_total += product.promotion * item.count
 
             items_data.append({
-                "product_name": product.title,
+                "product_title": product.title,
                 "price": float(line_total),
                 "count": item.count
             })

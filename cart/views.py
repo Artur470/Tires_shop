@@ -103,13 +103,23 @@ class CartView(APIView):
         user = request.user
         data = request.data
 
-        # Находим корзину пользователя
-        cart = get_object_or_404(Cart, user=user, ordered=False)
+        # Обязательная проверка наличия данных
+        product_id = data.get('product')
+        if not product_id:
+            return Response({'detail': 'Product ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Находим item по корзине и продукту
-        cart_item = get_object_or_404(CartItem, cart=cart, product_id=data.get('product'))
+        # Получаем активную корзину
+        cart = Cart.objects.filter(user=user, ordered=False).first()
+        if not cart:
+            return Response({'detail': 'No active cart found'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Обновляем количество
+        # Безопасная проверка наличия CartItem
+        cart_item = CartItem.objects.filter(cart=cart, product_id=product_id).first()
+        if not cart_item:
+            return Response({
+                'detail': f'No CartItem with product ID {product_id} in cart ID {cart.id}.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
         count = int(data.get('count', cart_item.count))
         cart_item.count = count
         cart_item.save()
