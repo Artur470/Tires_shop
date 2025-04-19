@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('product', '0014_alter_news_news_time'),
+        ('product', '0012_news'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

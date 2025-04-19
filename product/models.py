@@ -62,6 +62,8 @@ class Product(models.Model):
     ]
     title = models.CharField(max_length=100)
     image = CloudinaryField('image')
+
+
     price = models.DecimalField(max_digits=10, decimal_places=2)
     negotiable = models.BooleanField(default=False)
     promotion = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -135,7 +137,7 @@ class Comment(models.Model):
 
 
 class News(models.Model):
-    news_image = CloudinaryField('image', null=True, blank=True)
+    news_image = CloudinaryField('image')
     news_title = models.CharField(max_length=255)
     news_time = models.DateTimeField(auto_now_add=True)
     news_description = models.TextField()
@@ -143,3 +145,7 @@ class News(models.Model):
 
     def __str__(self):
         return self.news_title
+
+
+
+

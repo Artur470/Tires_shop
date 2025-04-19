@@ -27,7 +27,7 @@ RUS_TO_ENG = {
 class ProductCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
-        fields = ['title', 'image', 'price', 'negotiable', 'promotion', 'promotion_end_date', 'model_description', 'in_stock', 'profile', 'diameter', 'speed_index', 'load_index', 'load_index_for_double', 'manufacturer', 'model', 'generation', 'modification', 'promotionCategory', 'width', 'fuel_efficiency', 'wet_grip', 'external_noise_level', 'condition', 'season', 'tire_type', 'body_type', 'runflat', 'off_road', 'warranty' ]
+        fields = ['title', 'image' ,'price', 'negotiable', 'promotion', 'promotion_end_date', 'model_description', 'in_stock', 'profile', 'diameter', 'speed_index', 'load_index', 'load_index_for_double', 'manufacturer', 'model', 'generation', 'modification', 'promotionCategory', 'width', 'fuel_efficiency', 'wet_grip', 'external_noise_level', 'condition', 'season', 'tire_type', 'body_type', 'runflat', 'off_road', 'warranty' ]
 
 
 class ProductSerializerHomepage(serializers.ModelSerializer):

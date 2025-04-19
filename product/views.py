@@ -1193,28 +1193,33 @@ class ProductCommentListView(generics.ListAPIView):
         product_id = self.kwargs["product_id"]
         # Получаем все комментарии для данного продукта и сортируем их по дате (новые комментарии первыми)
         return Comment.objects.filter(product_id=product_id).order_by('-created_at')
+
 class NewsCustomLimitOffsetPagination(LimitOffsetPagination):
     default_limit = 6
     max_limit = None
 
-    def get_paginated_response(self, data):
-        return Response({
-            'NewsItem': data
-        })
+
+
+
 
 
 class NewsListView(APIView):
     pagination_class = NewsCustomLimitOffsetPagination
 
     @swagger_auto_schema(
-        operation_description="Получить список новостей",
+        operation_description="Получить список новостей (с пагинацией)",
         responses={
             200: openapi.Response(
-                description="Список новостей",
+                description="Пагинированный список новостей",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        'NewsItem': openapi.Schema(
+                        'count': openapi.Schema(type=openapi.TYPE_INTEGER, description='Общее количество новостей'),
+                        'next': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_URI, nullable=True,
+                                               description='Ссылка на следующую страницу'),
+                        'previous': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_URI, nullable=True,
+                                                   description='Ссылка на предыдущую страницу'),
+                        'results': openapi.Schema(
                             type=openapi.TYPE_ARRAY,
                             items=openapi.Schema(
                                 type=openapi.TYPE_OBJECT,
@@ -1222,7 +1227,7 @@ class NewsListView(APIView):
                                     'id': openapi.Schema(type=openapi.TYPE_INTEGER),
                                     'news_image': openapi.Schema(type=openapi.TYPE_STRING),
                                     'news_title': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'news_time': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'news_time': openapi.Schema(type=openapi.TYPE_STRING, format='date-time'),
                                     'news_description': openapi.Schema(type=openapi.TYPE_STRING),
                                 }
                             )

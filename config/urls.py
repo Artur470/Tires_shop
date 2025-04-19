@@ -5,7 +5,7 @@ from django.conf.urls.static import static
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework.permissions import IsAdminUser
-from rest_framework.authentication import BasicAuthentication
+from rest_framework.authentication import BasicAuthentication, SessionAuthentication
 from django.contrib.auth import views as auth_views
 
 # Создаем объект schema_view для Swagger с кастомной аутентификацией
@@ -20,7 +20,7 @@ schema_view = get_schema_view(
     ),
     public=False,  # Только для авторизованных пользователей
     permission_classes=(IsAdminUser,),  # Доступ только для администраторов
-    authentication_classes=[BasicAuthentication],  # Используем базовую аутентификацию
+    authentication_classes=[BasicAuthentication, SessionAuthentication],  # Используем базовую аутентификацию
 )
 
 urlpatterns = [
@@ -40,3 +40,7 @@ urlpatterns = [
 
 # Статические файлы
 urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+
+
+
