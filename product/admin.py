@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Product, Category,  Condition, TireType, Season, BodyType
+from .models import Product,   Condition, TireType, Season, BodyType
 
 
 class ProductAdmin(admin.ModelAdmin):
@@ -11,7 +11,7 @@ class ProductAdmin(admin.ModelAdmin):
     filter_horizontal = ('promotion_category',)
 
 admin.site.register(Product)
-admin.site.register(Category)
+
 
 
 

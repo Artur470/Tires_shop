@@ -1,22 +1,21 @@
 
 from django.urls import path
-from .views import (CategoriesListView,
-                    HomepageView,
-                    FavoriteProduct,
-                    ProductCommentListView,
-                    CommentCreateView,
-                    ProductListView,
-                    ProductFilterView,
-                    ProductDetailView,
-                    ProductAutocompleteView,
-                    NewsListView,
-                    NewsDetailView,
-                    NewsCreateView,
-                    )
+from .views import (
+    HomepageView,
+    FavoriteProduct,
+    ProductCommentListView,
+    CommentCreateView,
+    ProductListView,
+    ProductFilterView,
+    ProductDetailView,
+    ProductAutocompleteView,
+    NewsListView,
+    NewsDetailView,
+    NewsCreateView,  ProductCreateView
+)
 urlpatterns = [
 
 
-    path('categories/',  CategoriesListView.as_view()),
     path('all/', ProductListView.as_view()),
     path('<int:pk>/', ProductDetailView.as_view(), name='product-detail'),
     path('homepage/',HomepageView.as_view()),
@@ -28,6 +27,7 @@ urlpatterns = [
     path('news_list/', NewsListView.as_view(), name='news-list'),
     path('news_create/', NewsCreateView.as_view(), name='news-list'),
     path('news/<int:pk>/', NewsDetailView.as_view(), name='news-detail'),
+    path('create/', ProductCreateView.as_view(), name='product-create'),
 
 
 

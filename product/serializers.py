@@ -1,6 +1,6 @@
 
 from rest_framework import serializers
-from .models import Product, Category, Comment, News
+from .models import Product, Comment, News
 from drf_yasg import openapi
 from django.db.models import Sum
 from .utils import round_to_half
@@ -24,21 +24,11 @@ RUS_TO_ENG = {
     'Компрессоры': 'Compressors',
 }
 
-
-class CategoriesSerializer(serializers.ModelSerializer):
-    label = serializers.CharField()
-    value = serializers.CharField(required=False)  # Делаем value необязательным
-
+class ProductCreateSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Category
-        fields = ['id','label', 'value']
+        model = Product
+        fields = ['title', 'image', 'price', 'negotiable', 'promotion', 'promotion_end_date', 'model_description', 'in_stock', 'profile', 'diameter', 'speed_index', 'load_index', 'load_index_for_double', 'manufacturer', 'model', 'generation', 'modification', 'promotionCategory', 'width', 'fuel_efficiency', 'wet_grip', 'external_noise_level', 'condition', 'season', 'tire_type', 'body_type', 'runflat', 'off_road', 'warranty' ]
 
-    def create(self, validated_data):
-        if 'value' not in validated_data or not validated_data['value']:
-            label = validated_data['label']
-            # Переводим label на английский
-            validated_data['value'] = RUS_TO_ENG.get(label, label)  # Если нет перевода, оставляем label как есть
-        return super().create(validated_data)
 
 class ProductSerializerHomepage(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id', help_text="id товара")

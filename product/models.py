@@ -62,8 +62,8 @@ class Product(models.Model):
     ]
     title = models.CharField(max_length=100)
     image = CloudinaryField('image')
-    category = models.ForeignKey('Category', on_delete=models.CASCADE)
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    negotiable = models.BooleanField(default=False)
     promotion = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     promotion_end_date = models.DateTimeField(null=True, blank=True)
     model_description = models.TextField()
@@ -91,6 +91,9 @@ class Product(models.Model):
     off_road = models.BooleanField(default=False)
     warranty = models.CharField(max_length=100, blank=True, null=True)  # Поле гарантии
 
+    def get_price_display(self):
+        return "Договорная" if self.negotiable else f"{self.price} c"
+
 
     def __str__(self):
         return f"{self.title} - {self.id}"
@@ -99,15 +102,6 @@ class Product(models.Model):
 
 
 
-class Category(models.Model):
-    label = models.CharField(max_length=100)
-    value = models.CharField(max_length=100)
-
-    def __str__(self):
-        return self.label
-
-    def get_value(self):
-        return self.value  # Возвращает английский текст
 
 class Comment(models.Model):
     RATING_CHOICES = [

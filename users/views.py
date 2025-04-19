@@ -320,6 +320,7 @@ class UserApplicationsDetail(APIView):
             401: "Unauthorized"
         }
     )
+
     def get(self, request, order_id):
         user = request.user
 

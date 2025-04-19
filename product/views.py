@@ -40,18 +40,18 @@ from drf_yasg import openapi
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-from .models import Category
-from .serializers import CategoriesSerializer
+
 import logging
 from rest_framework.views import APIView
-from .models import Product, Category, Comment, BodyType, News
-from .serializers import (ProductSerializerHomepage, CategoriesSerializer,
+from .models import Product,  Comment, BodyType, News
+from .serializers import (ProductSerializerHomepage,
                           FavoriteProductListSerializer,
                           CommentSerializer,
                           ProductSerializerll,
                           ProductDetailSerializer,
                           NewsDetailSerializer,
-                          NewsSerializer)
+                          NewsSerializer,
+                          ProductCreateSerializer)
 from rest_framework.response import Response
 from rest_framework import status
 from django_filters.rest_framework import DjangoFilterBackend
@@ -401,92 +401,6 @@ class HomepageView(ListAPIView):
         minutes = (time_remaining.seconds % 3600) // 60
         seconds = time_remaining.seconds % 60
         return f"{days}d {hours}h {minutes}m {seconds}s"
-class CategoriesListView(generics.ListCreateAPIView):
-    queryset = Category.objects.all()
-    serializer_class = CategoriesSerializer
-    """
-    API для получения списка категорий и добавления новой категории.
-    """
-
-    @swagger_auto_schema(
-        operation_summary="Получение списка категорий",
-        operation_description="Возвращает список всех категорий с их переводами.",
-        responses={200: CategoriesSerializer(many=True)},
-    )
-    def get(self, request):
-        """
-        Возвращает список всех категорий.
-
-        **Пример ответа**:
-        ```json
-        [
-            {
-                "id": 1,
-                "label": "АВТОМОБИЛЬНЫЕ ШИНЫ",
-                "value": "Car tires"
-            },
-            {
-                "id": 2,
-                "label": "ГРУЗОВЫЕ МАШИНЫ",
-                "value": "Trucks"
-            }
-        ]
-        ```
-        """
-        categories = Category.objects.all()
-        serializer = CategoriesSerializer(categories, many=True)
-        return Response(serializer.data)
-
-    @swagger_auto_schema(
-        operation_summary="Добавление новой категории",
-        operation_description="Добавляет новую категорию. Если значение `value` не передано, оно автоматически переводится.",
-        request_body=CategoriesSerializer,
-        responses={
-            201: openapi.Response(
-                description="Категория успешно создана",
-                examples={
-                    "application/json": {"label": "АВТОМОБИЛЬНЫЕ ШИНЫ", "value": "Car tires"}
-                },
-            ),
-            400: openapi.Response(
-                description="Ошибка валидации",
-                examples={
-                    "application/json": {"label": ["This field may not be blank."]}
-                },
-            ),
-        },
-    )
-    def post(self, request):
-        """
-        Добавляет новую категорию.
-
-        **Пример запроса**:
-        ```json
-        {
-            "label": "Автомобильные шины"
-        }
-        ```
-
-        **Пример успешного ответа**:
-        ```json
-        {
-            "label": "АВТОМОБИЛЬНЫЕ ШИНЫ",
-            "value": "Car tires"
-        }
-        ```
-
-        **Ошибки**:
-        - `400 Bad Request`: Если `label` пустой или содержит некорректные данные.
-        """
-        serializer = CategoriesSerializer(data=request.data)
-        if serializer.is_valid():
-            category = serializer.save()
-            return Response({'label': category.label, 'value': category.value}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-
 
 class FavoriteProduct(APIView):
     serializers = FavoriteProductListSerializer
@@ -1406,3 +1320,25 @@ class NewsCreateView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProductCreateView(generics.CreateAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductCreateSerializer
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        tags=["Product"],
+        operation_description="Создание нового товара",
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = ProductCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            product = serializer.save()
+            return Response({
+                "success": True,
+                "product_id": product.id,
+                "message": "Товар успешно создан"
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
