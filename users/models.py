@@ -48,8 +48,8 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True
     )
 
-    USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ['username']  # Можно добавить другие обязательные поля
+    USERNAME_FIELD = "username"
+    REQUIRED_FIELDS = ['email']  # Можно добавить другие обязательные поля
 
     objects = CustomUserManager()
 
