@@ -14,8 +14,6 @@ from .views import (
     NewsCreateView,  ProductCreateView
 )
 urlpatterns = [
-
-
     path('all/', ProductListView.as_view()),
     path('<int:pk>/', ProductDetailView.as_view(), name='product-detail'),
     path('homepage/',HomepageView.as_view()),

@@ -5,13 +5,56 @@ from product.serializers import *
 
 class ProductSerializer(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id', help_text="id товара")
+    image1 = serializers.SerializerMethodField(help_text="изображение шин #1")
+    image2 = serializers.SerializerMethodField(help_text="изображение шин #2")
+    image3 = serializers.SerializerMethodField(help_text="изображение шин #3")
+    image4 = serializers.SerializerMethodField(help_text="изображение шин #4")
+    image5 = serializers.SerializerMethodField(help_text="изображение шин #5")
+    image6 = serializers.SerializerMethodField(help_text="изображение шин #6")
+    image7 = serializers.SerializerMethodField(help_text="изображение шин #7")
     in_stock = serializers.IntegerField(help_text="количество шины в складе")
     price = serializers.SerializerMethodField()
     count = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
-        fields = ['product_Id', 'title', 'price', 'image', 'in_stock', 'count']
+        fields = ['product_Id', 'title', 'price', 'image1', 'image2', 'image3', 'image4', 'image5', 'image6', 'image7', 'in_stock', 'count']
+
+    def get_image1(self, obj):
+        if obj.image1:
+            return obj.image1.url
+        return None
+
+    def get_image2(self, obj):
+        if obj.image2:
+            return obj.image2.url
+        return None
+
+    def get_image3(self, obj):
+        if obj.image3:
+            return obj.image3.url
+        return None
+
+    def get_image4(self, obj):
+        if obj.image4:
+            return obj.image4.url
+        return None
+
+    def get_image5(self, obj):
+        if obj.image5:
+            return obj.image5.url
+        return None
+
+    def get_image6(self, obj):
+        if obj.image6:
+            return obj.image6.url
+        return None
+
+    def get_image7(self, obj):
+        if obj.image7:
+            return obj.image7.url
+        return None
+
 
     def get_price(self, obj):
         count = self.context.get('count', 1)

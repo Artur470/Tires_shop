@@ -61,9 +61,13 @@ class Product(models.Model):
         ('F', 'F'),
     ]
     title = models.CharField(max_length=100)
-    image = CloudinaryField('image')
-
-
+    image1 = CloudinaryField('image1')
+    image2 = CloudinaryField('image2', null=True, blank=True)
+    image3 = CloudinaryField('image3', null=True, blank=True)
+    image4 = CloudinaryField('image4', null=True, blank=True)
+    image5 = CloudinaryField('image5', null=True, blank=True)
+    image6 = CloudinaryField('image6', null=True, blank=True)
+    image7 = CloudinaryField('image7', null=True, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     negotiable = models.BooleanField(default=False)
     promotion = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)

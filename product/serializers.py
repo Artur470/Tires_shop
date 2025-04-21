@@ -25,16 +25,42 @@ RUS_TO_ENG = {
 }
 
 class ProductCreateSerializer(serializers.ModelSerializer):
+    image1 = serializers.ImageField(write_only=True, required=True)
+    image2 = serializers.ImageField(write_only=True, required=False)
+    image3 = serializers.ImageField(write_only=True, required=False)
+    image4 = serializers.ImageField(write_only=True, required=False)
+    image5 = serializers.ImageField(write_only=True, required=False)
+    image6 = serializers.ImageField(write_only=True, required=False)
+    image7 = serializers.ImageField(write_only=True, required=False)
+
     class Meta:
         model = Product
-        fields = ['title', 'image' ,'price', 'negotiable', 'promotion', 'promotion_end_date', 'model_description', 'in_stock', 'profile', 'diameter', 'speed_index', 'load_index', 'load_index_for_double', 'manufacturer', 'model', 'generation', 'modification', 'promotionCategory', 'width', 'fuel_efficiency', 'wet_grip', 'external_noise_level', 'condition', 'season', 'tire_type', 'body_type', 'runflat', 'off_road', 'warranty' ]
+        fields = ['title', 'image1', 'image2', 'image3', 'image4', 'image5', 'image6', 'image7' ,'price', 'negotiable', 'promotion', 'promotion_end_date', 'model_description', 'in_stock', 'profile', 'diameter', 'speed_index', 'load_index', 'load_index_for_double', 'manufacturer', 'model', 'generation', 'modification', 'promotionCategory', 'width', 'fuel_efficiency', 'wet_grip', 'external_noise_level', 'condition', 'season', 'tire_type', 'body_type', 'runflat', 'off_road', 'warranty' ]
 
+
+
+    def create(self, validated_data):
+        # Все изображения загружаем на Cloudinary вручную
+        from cloudinary.uploader import upload
+
+        for field in ['image1', 'image2', 'image3', 'image4', 'image5', 'image6', 'image7']:
+            if field in validated_data:
+                upload_result = upload(validated_data[field])
+                validated_data[field] = upload_result['public_id']
+
+        return Product.objects.create(**validated_data)
 
 class ProductSerializerHomepage(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id', help_text="id товара")
     average_rating = serializers.SerializerMethodField(help_text="средний статистический рейтинг")
     comments_count = serializers.IntegerField(source="comment_set.count", read_only=True, help_text="количество комментариев")
-    image = serializers.SerializerMethodField(help_text="изображение шин")
+    image1 = serializers.SerializerMethodField(help_text="изображение шин #1")
+    image2 = serializers.SerializerMethodField(help_text="изображение шин #2")
+    image3 = serializers.SerializerMethodField(help_text="изображение шин #3")
+    image4 = serializers.SerializerMethodField(help_text="изображение шин #4")
+    image5 = serializers.SerializerMethodField(help_text="изображение шин #5")
+    image6 = serializers.SerializerMethodField(help_text="изображение шин #6")
+    image7 = serializers.SerializerMethodField(help_text="изображение шин #7")
     promotion_category = serializers.SerializerMethodField(help_text="это поля для дополнительной акции, еще на что действует кроме данного товара")
     season = serializers.SerializerMethodField(help_text="Сезонность шин: лето, зима, всесезонные.")
     is_favorite = serializers.BooleanField(default=False, help_text="избранный в homepage который добавляет в избранные если равна к true.")
@@ -45,7 +71,7 @@ class ProductSerializerHomepage(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'product_Id', 'image', 'season', 'average_rating', 'comments_count',
+            'product_Id', 'image1', 'image2', 'image3', 'image4', 'image5', 'image6', 'image7', 'season', 'average_rating', 'comments_count',
             'title', 'in_stock', 'price', 'is_favorite', 'promotion_category'
         ]
 
@@ -54,10 +80,42 @@ class ProductSerializerHomepage(serializers.ModelSerializer):
             return obj.promotion_category.split(", ")  # Преобразуем строку в список
         return []
 
-    def get_image(self, obj):
-        if obj.image:
-            return obj.image.url
+    def get_image1(self, obj):
+        if obj.image1:
+            return obj.image1.url
         return None
+
+    def get_image2(self, obj):
+        if obj.image2:
+            return obj.image2.url
+        return None
+
+
+    def get_image3(self, obj):
+        if obj.image3:
+            return obj.image3.url
+        return None
+
+    def get_image4(self, obj):
+        if obj.image4:
+            return obj.image4.url
+        return None
+
+    def get_image5(self, obj):
+        if obj.image5:
+            return obj.image5.url
+        return None
+
+    def get_image6(self, obj):
+        if obj.image6:
+            return obj.image6.url
+        return None
+
+    def get_image7(self, obj):
+        if obj.image7:
+            return obj.image7.url
+        return None
+
 
     def get_comments_count(self, obj):
         return obj.comment_set.count()
@@ -78,7 +136,13 @@ class ProductSerializerHomepage(serializers.ModelSerializer):
 
 class FavoriteProductListSerializer(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id')
-    image = serializers.SerializerMethodField()
+    image1 = serializers.SerializerMethodField(help_text="изображение шин #1")
+    image2 = serializers.SerializerMethodField(help_text="изображение шин #2")
+    image3 = serializers.SerializerMethodField(help_text="изображение шин #3")
+    image4 = serializers.SerializerMethodField(help_text="изображение шин #4")
+    image5 = serializers.SerializerMethodField(help_text="изображение шин #5")
+    image6 = serializers.SerializerMethodField(help_text="изображение шин #6")
+    image7 = serializers.SerializerMethodField(help_text="изображение шин #7")
     season = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField(help_text="средний статистический рейтинг")
     comments_count = serializers.IntegerField(source="comment_set.count", read_only=True,
@@ -86,10 +150,42 @@ class FavoriteProductListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['product_Id', 'image', 'price', 'season', 'title', 'in_stock', 'is_favorite', 'average_rating', 'comments_count']
+        fields = ['product_Id', 'image1', 'image2', 'image3', 'image4', 'image5', 'image6', 'image7',  'price', 'season', 'title', 'in_stock', 'is_favorite', 'average_rating', 'comments_count']
 
-    def get_image(self, obj):
-        return obj.image.url if obj.image else None
+    def get_image1(self, obj):
+        if obj.image1:
+            return obj.image1.url
+        return None
+
+    def get_image2(self, obj):
+        if obj.image2:
+            return obj.image2.url
+        return None
+
+    def get_image3(self, obj):
+        if obj.image3:
+            return obj.image3.url
+        return None
+
+    def get_image4(self, obj):
+        if obj.image4:
+            return obj.image4.url
+        return None
+
+    def get_image5(self, obj):
+        if obj.image5:
+            return obj.image5.url
+        return None
+
+    def get_image6(self, obj):
+        if obj.image6:
+            return obj.image6.url
+        return None
+
+    def get_image7(self, obj):
+        if obj.image7:
+            return obj.image7.url
+        return None
 
     def get_season(self, obj):
         if obj.season:
@@ -132,7 +228,13 @@ class ProductSerializerll(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id', help_text="id товара")
     average_rating = serializers.SerializerMethodField(help_text="средний статистический рейтинг")
     comments_count = serializers.IntegerField(source="comment_set.count", read_only=True, help_text="количество комментариев")
-    image = serializers.SerializerMethodField(help_text="изображение шин")
+    image1 = serializers.SerializerMethodField(help_text="изображение шин #1")
+    image2 = serializers.SerializerMethodField(help_text="изображение шин #2")
+    image3 = serializers.SerializerMethodField(help_text="изображение шин #3")
+    image4 = serializers.SerializerMethodField(help_text="изображение шин #4")
+    image5 = serializers.SerializerMethodField(help_text="изображение шин #5")
+    image6 = serializers.SerializerMethodField(help_text="изображение шин #6")
+    image7 = serializers.SerializerMethodField(help_text="изображение шин #7")
     season = serializers.SerializerMethodField(help_text="Сезонность шин: лето, зима, всесезонные.")
     is_favorite = serializers.BooleanField(default=False, help_text="избранный в каталоге который добавляет в избранные если равна к true.")
     price = serializers.DecimalField(max_digits=10, decimal_places=2, help_text="цена без учета скидки")
@@ -141,7 +243,7 @@ class ProductSerializerll(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['product_Id', 'image', 'average_rating', 'comments_count', 'title', 'in_stock', 'price', 'is_favorite', "season"]
+        fields = ['product_Id', 'image1', 'image2', 'image3', 'image4', 'image5', 'image6', 'image7', 'average_rating', 'comments_count', 'title', 'in_stock', 'price', 'is_favorite', "season"]
 
     # Swagger-описание для promotion_category
     promotion_category_schema = openapi.Schema(
@@ -155,9 +257,39 @@ class ProductSerializerll(serializers.ModelSerializer):
             return obj.season.value  # Возвращаем значение label, а не id
         return None
 
-    def get_image(self, obj):
-        if obj.image:
-            return obj.image.url
+    def get_image1(self, obj):
+        if obj.image1:
+            return obj.image1.url
+        return None
+
+    def get_image2(self, obj):
+        if obj.image2:
+            return obj.image2.url
+        return None
+
+    def get_image3(self, obj):
+        if obj.image3:
+            return obj.image3.url
+        return None
+
+    def get_image4(self, obj):
+        if obj.image4:
+            return obj.image4.url
+        return None
+
+    def get_image5(self, obj):
+        if obj.image5:
+            return obj.image5.url
+        return None
+
+    def get_image6(self, obj):
+        if obj.image6:
+            return obj.image6.url
+        return None
+
+    def get_image7(self, obj):
+        if obj.image7:
+            return obj.image7.url
         return None
 
     def get_comments_count(self, obj):
@@ -173,7 +305,13 @@ class ProductSerializerll(serializers.ModelSerializer):
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):
-    image_url = serializers.SerializerMethodField()
+    image1 = serializers.SerializerMethodField(help_text="изображение шин #1")
+    image2 = serializers.SerializerMethodField(help_text="изображение шин #2")
+    image3 = serializers.SerializerMethodField(help_text="изображение шин #3")
+    image4 = serializers.SerializerMethodField(help_text="изображение шин #4")
+    image5 = serializers.SerializerMethodField(help_text="изображение шин #5")
+    image6 = serializers.SerializerMethodField(help_text="изображение шин #6")
+    image7 = serializers.SerializerMethodField(help_text="изображение шин #7")
     comments = CommentSerializer(many=True, read_only=True)
     comments_count = serializers.IntegerField(source="comment_set.count", read_only=True,
                                               help_text="количество комментариев")
@@ -187,12 +325,44 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ["id", "title", "manufacturer", "in_stock", "model", "price", "season", "is_favorite", "width",
-                  "profile", "diameter", "speed_index", "load_index", "load_index_for_double", "image_url", "comments",
+        fields = ["id", "title", 'image1', 'image2', 'image3', 'image4', 'image5', 'image6', 'image7',  "manufacturer", "in_stock", "model", "price", "season", "is_favorite", "width",
+                  "profile", "diameter", "speed_index", "load_index", "load_index_for_double", "comments",
                   "average_rating", "model_description", "season_value", "warranty", 'comments_count',]
 
-    def get_image_url(self, obj):
-        return obj.image.url if obj.image else None
+    def get_image1(self, obj):
+        if obj.image1:
+            return obj.image1.url
+        return None
+
+    def get_image2(self, obj):
+        if obj.image2:
+            return obj.image2.url
+        return None
+
+    def get_image3(self, obj):
+        if obj.image3:
+            return obj.image3.url
+        return None
+
+    def get_image4(self, obj):
+        if obj.image4:
+            return obj.image4.url
+        return None
+
+    def get_image5(self, obj):
+        if obj.image5:
+            return obj.image5.url
+        return None
+
+    def get_image6(self, obj):
+        if obj.image6:
+            return obj.image6.url
+        return None
+
+    def get_image7(self, obj):
+        if obj.image7:
+            return obj.image7.url
+        return None
 
     def get_average_rating(self, obj):
         """Вычисляет средний рейтинг продукта на лету."""

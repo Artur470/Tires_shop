@@ -271,9 +271,9 @@ class HomepageView(ListAPIView):
         popular_products_data = [
             {
                 "product_Id": product.id,
-                "image": product.image.url,
+                "image1": product.image1.url,
                 "season": product.season.label if product.season else None,
-                 "average_rating": round(product.average_rating * 2) / 2,
+                "average_rating": round(product.average_rating * 2) / 2,
                 "comments_count": product.comments_count,
                 "title": product.title,
                 "in_stock": product.in_stock,
@@ -292,7 +292,7 @@ class HomepageView(ListAPIView):
         promotion_data = [
             {
                 "promotion_id": product.id,
-                "promotion_image": product.image.url,
+                "promotion_image": product.image1.url,
                 "promotion_title": product.title,
                 "promotion_price": str(product.promotion),
                 "promotion_end_time": self.get_promotion_time_remaining(product.promotion_end_date),
@@ -1075,7 +1075,7 @@ class ProductDetailView(generics.RetrieveAPIView):
                 "in_stock": p.get("in_stock"),
                 "favorite": p["is_favorite"],
                 "season": p["season_value"],
-                "image_url": p.get("image_url", None),
+                "image1": p.get("image1", None),
                 "comments_count": p["comments_count"],
             }
             for p in similar_products_serialized
@@ -1096,7 +1096,13 @@ class ProductDetailView(generics.RetrieveAPIView):
             },
             "title": data.get("title", product.title),
             "favorite": product.is_favorite,
-            "image_url": data.get("image_url", None),
+            "image1": data.get("image1", None),
+            "image2": data.get("image2", None),
+            "image3": data.get("image3", None),
+            "image4": data.get("image4", None),
+            "image5": data.get("image5", None),
+            "image6": data.get("image6", None),
+            "image7": data.get("image7", None),
             "promotion": promotion,
             "average_rating": data.get("average_rating", 0.0),
             "comments_count": product.comment_set.count(),
@@ -1193,6 +1199,8 @@ class ProductCommentListView(generics.ListAPIView):
         product_id = self.kwargs["product_id"]
         # Получаем все комментарии для данного продукта и сортируем их по дате (новые комментарии первыми)
         return Comment.objects.filter(product_id=product_id).order_by('-created_at')
+
+
 
 class NewsCustomLimitOffsetPagination(LimitOffsetPagination):
     default_limit = 6
@@ -1333,8 +1341,9 @@ class ProductCreateView(generics.CreateAPIView):
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
-        tags=["Product"],
-        operation_description="Создание нового товара",
+        manual_parameters=[],
+        operation_description="Создание нового товара с изображением",
+        request_body=ProductCreateSerializer
     )
     def post(self, request, *args, **kwargs):
         serializer = ProductCreateSerializer(data=request.data)
