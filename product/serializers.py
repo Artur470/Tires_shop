@@ -131,8 +131,12 @@ class ProductSerializerHomepage(serializers.ModelSerializer):
         total_rating = comments.aggregate(models.Sum("rating"))["rating__sum"] or 0
         average_rating = total_rating / count
 
-        # Округляем до ближайшей половины
-        return round(average_rating * 2) / 2
+        # Ограничиваем максимальное значение до 5.0
+        average_rating = min(average_rating, 5.0)
+
+        # Округляем до одного знака после запятой
+        return round(average_rating, 1)
+
 
 class FavoriteProductListSerializer(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id')
@@ -203,12 +207,15 @@ class FavoriteProductListSerializer(serializers.ModelSerializer):
 
     def get_average_rating(self, obj):
         comments = obj.comment_set.all()
-        from .utils import round_to_half
         if not comments:
             return 0.0
         total_rating = sum(comment.rating for comment in comments)
-        return round_to_half(total_rating / len(comments))
+        average_rating = total_rating / len(comments)
 
+        # Ограничиваем максимальное значение до 5.0
+        average_rating = min(average_rating, 5.0)
+
+        return round(average_rating, 1)
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -297,11 +304,15 @@ class ProductSerializerll(serializers.ModelSerializer):
 
     def get_average_rating(self, obj):
         comments = obj.comment_set.all()
-        from .utils import round_to_half
         if not comments:
             return 0.0
         total_rating = sum(comment.rating for comment in comments)
-        return round_to_half(total_rating / len(comments))
+        average_rating = total_rating / len(comments)
+
+        # Ограничиваем максимальное значение до 5.0
+        average_rating = min(average_rating, 5.0)
+
+        return round(average_rating, 1)
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):
@@ -367,14 +378,15 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     def get_average_rating(self, obj):
         """Вычисляет средний рейтинг продукта на лету."""
         comments = obj.comment_set.all()
-        from .utils import round_to_half
         if not comments:
             return 0.0
         total_rating = sum(comment.rating for comment in comments)
-        return round_to_half(total_rating / len(comments))
+        average_rating = total_rating / len(comments)
 
+        # Ограничиваем максимальное значение до 5.0
+        average_rating = min(average_rating, 5.0)
 
-
+        return round(average_rating, 1)
 
 
 class NewsSerializer(serializers.ModelSerializer):
