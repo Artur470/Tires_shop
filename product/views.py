@@ -266,59 +266,46 @@ class HomepageView(ListAPIView):
         ).order_by(
             F('average_rating').desc(nulls_last=True),
             '-comments_count'
-        )
+        )[:4]
 
-        popular_products_data = [
-            {
-                "product_Id": product.id,
-                "image1": product.image1.url,
-                "season": product.season.label if product.season else None,
-                "average_rating": round(product.average_rating * 2) / 2,
-                "comments_count": product.comments_count,
-                "title": product.title,
-                "in_stock": product.in_stock,
-                "price": str(product.price),
-                "is_favorite": product.is_favorite,
-            }
-            for product in popular_products[:4]
-        ]
+        # ✅ сериализация популярных товаров через ProductSerializerHomepage
+        popular_products_data = ProductSerializerHomepage(
+            popular_products,
+            many=True,
+            context={'request': request}
+        ).data
 
         # Товары с акциями
         promotions = queryset.filter(
             promotion__isnull=False,
             promotion_end_date__gt=timezone.now()
-        )
+        )[:3]
 
         promotion_data = [
             {
                 "promotion_id": product.id,
-                "promotion_image": product.image1.url,
+                "promotion_image": product.image1.url if product.image1 else None,
                 "promotion_title": product.title,
                 "promotion_price": str(product.promotion),
                 "promotion_end_time": self.get_promotion_time_remaining(product.promotion_end_date),
                 "promotion_category": product.promotionCategory.split(", ") if product.promotionCategory else [],
             }
-            for product in promotions[:3]
+            for product in promotions
         ]
-        # Получаем все уникальные ID body_type для продуктов
+
+        # Уникальные body_type ID
         ids = Product.objects.values_list('body_type', flat=True).distinct()
-
-        # Получаем значения body_type (например, 'sedan', 'coupe', 'universal') из модели BodyType
         body_type_values = {bt.id: bt.value for bt in BodyType.objects.all()}
-
-        # Преобразуем ID в соответствующие значения
         body_type_values_list = [body_type_values.get(id, 'Unknown') for id in ids]
 
-        # Доступные фильтры
         filters_data = {
             "manufacturers": list(Product.objects.values_list("manufacturer", flat=True).distinct()),
             "models": list(Product.objects.values_list("model", flat=True).distinct()),
             "generations": list(Product.objects.values_list("generation", flat=True).distinct()),
             "modifications": list(Product.objects.values_list("modification", flat=True).distinct()),
-            "body_type": body_type_values_list,  # Здесь передаем список значений body_type
+            "body_type": body_type_values_list,
         }
 
-        # Создание данных для главной страницы
         homepage_data = {
             "popular": popular_products_data,
             "promotion": promotion_data,
@@ -326,6 +313,8 @@ class HomepageView(ListAPIView):
         }
 
         return Response(homepage_data)
+
+
     @swagger_auto_schema(
         tags=['Homepage'],
         operation_summary="Добавить товар в избранное",
@@ -1021,6 +1010,93 @@ class ProductFilterView(APIView):
                 {"value": "expensive", "label": "Сначала дорогие"}
             ]
         }
+
+class FilterDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_summary="Детали применённых фильтров и подходящие товары",
+        operation_description="""
+    Этот эндпоинт показывает, какие фильтры были применены ранее, и возвращает список товаров, которые этим фильтрам соответствуют.
+    Фильтры хранятся в сессии, устанавливаются через POST /product/filter/.
+
+    """,
+        responses={
+            200: openapi.Response(
+                description="Список товаров и примененные фильтры",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "applied_filters": openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            description="Применённые фильтры из сессии"
+                        ),
+                        "matched_products": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            description="Список товаров, соответствующих фильтрам",
+                            items=openapi.Schema(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    "product_id": openapi.Schema(type=openapi.TYPE_INTEGER),
+                                    "title": openapi.Schema(type=openapi.TYPE_STRING),
+                                    "manufacturer": openapi.Schema(type=openapi.TYPE_STRING),
+                                    "model": openapi.Schema(type=openapi.TYPE_STRING),
+                                    "season": openapi.Schema(type=openapi.TYPE_STRING),
+                                    "width": openapi.Schema(type=openapi.TYPE_STRING),
+                                    "profile": openapi.Schema(type=openapi.TYPE_STRING),
+                                    "diameter": openapi.Schema(type=openapi.TYPE_STRING),
+                                    "speed_index": openapi.Schema(type=openapi.TYPE_STRING),
+                                    "load_index": openapi.Schema(type=openapi.TYPE_STRING),
+                                    "promotion": openapi.Schema(type=openapi.TYPE_NUMBER, nullable=True),
+                                    "price": openapi.Schema(type=openapi.TYPE_STRING),
+                                    "in_stock": openapi.Schema(type=openapi.TYPE_INTEGER)
+                                }
+                            )
+                        ),
+                        "total_matched": openapi.Schema(
+                            type=openapi.TYPE_INTEGER,
+                            description="Количество совпавших товаров"
+                        )
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Фильтры не найдены в сессии"
+            )
+        },
+        tags=["Product Filter"]
+    )
+    def get(self, request, *args, **kwargs):
+        filters = request.session.get("product_filters")
+        if not filters:
+            return Response({"message": "Фильтры не найдены в сессии"}, status=404)
+
+        # Получаем отфильтрованные товары
+        filtered_qs = ProductFilterall(filters, queryset=Product.objects.all()).qs
+
+        result = []
+        for product in filtered_qs:
+            result.append({
+                "product_id": product.id,
+                "title": product.title,
+                "manufacturer": product.manufacturer,
+                "model": product.model,
+                "season": product.season.value if product.season else None,
+                "width": product.width,
+                "profile": product.profile,
+                "diameter": product.diameter,
+                "speed_index": product.speed_index,
+                "load_index": product.load_index,
+                "promotion": float(product.promotion) if product.promotion else None,
+                "price": "Договорная" if product.negotiable else float(product.price) if product.price else None,
+                "in_stock": product.in_stock
+            })
+
+        return Response({
+            "applied_filters": filters,
+            "matched_products": result,
+            "total_matched": filtered_qs.count()
+        }, status=200)
 class ProductDetailView(generics.RetrieveAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductDetailSerializer
@@ -1031,21 +1107,32 @@ class ProductDetailView(generics.RetrieveAPIView):
         serializer = self.get_serializer(product)
         data = serializer.data
 
-        session_price = request.session.get(f"product_{product.id}_price", float(product.price))
+        is_negotiable = product.negotiable
+        raw_price = product.price
+        raw_promotion = product.promotion
+
+        price_val = float(raw_price) if raw_price is not None else None
+        promotion_val = float(raw_promotion) if raw_promotion is not None else None
+
+        session_price = request.session.get(f"product_{product.id}_price", price_val)
+        session_promotion = request.session.get(f"product_{product.id}_promotion", promotion_val)
         session_in_stock = request.session.get(f"product_{product.id}_in_stock", product.in_stock)
-        session_promotion = request.session.get(f"product_{product.id}_promotion", float(product.promotion) if product.promotion else None)
         session_count = request.session.get(f"product_{product.id}_count", 1)
 
         request.session.modified = True
         if session_count == 1:
-            request.session[f"product_{product.id}_price"] = float(product.price)
-            request.session[f"product_{product.id}_promotion"] = float(product.promotion) if product.promotion else None
+            request.session[f"product_{product.id}_price"] = price_val
+            request.session[f"product_{product.id}_promotion"] = promotion_val
             request.session[f"product_{product.id}_in_stock"] = product.in_stock
 
-        price = session_price if session_price is not None else float(product.price)
-        promotion = session_promotion if session_promotion is not None else (float(product.promotion) if product.promotion else None)
-        in_stock = session_in_stock if session_in_stock is not None else product.in_stock
+        # 🧠 логика для "Договорная"
+        if is_negotiable:
+            price = "Договорная"
+        else:
+            price = session_price if session_price is not None else price_val
 
+        promotion = session_promotion if session_promotion is not None else promotion_val
+        in_stock = session_in_stock if session_in_stock is not None else product.in_stock
         # Фильтрация похожих товаров
         base_filters = [
             Q(manufacturer=product.manufacturer),
@@ -1059,7 +1146,7 @@ class ProductDetailView(generics.RetrieveAPIView):
         strict_filters = reduce(lambda x, y: x & y, base_filters)
         similar_products = Product.objects.filter(strict_filters).exclude(id=product.id)
 
-        if similar_products.count() < 5:
+        if similar_products.count() < 5 and product.price is not None:
             price_range = (product.price * Decimal('0.9'), product.price * Decimal('1.1'))
             relaxed_filters = strict_filters | Q(price__range=price_range)
             similar_products = Product.objects.filter(relaxed_filters).exclude(id=product.id)[:5]
@@ -1075,7 +1162,7 @@ class ProductDetailView(generics.RetrieveAPIView):
                 "in_stock": p.get("in_stock"),
                 "favorite": p["is_favorite"],
                 "season": p["season_value"],
-                "image1": p.get("image1", None),
+                "image1": p.get("image", None),
                 "comments_count": p["comments_count"],
             }
             for p in similar_products_serialized
@@ -1096,18 +1183,14 @@ class ProductDetailView(generics.RetrieveAPIView):
             },
             "title": data.get("title", product.title),
             "favorite": product.is_favorite,
-            "image1": data.get("image1", None),
-            "image2": data.get("image2", None),
-            "image3": data.get("image3", None),
-            "image4": data.get("image4", None),
-            "image5": data.get("image5", None),
-            "image6": data.get("image6", None),
-            "image7": data.get("image7", None),
+            "image": data.get("image"),
             "promotion": promotion,
             "average_rating": data.get("average_rating", 0.0),
             "comments_count": product.comment_set.count(),
             "model_description": data.get("model_description", ""),
             "price": price,
+
+            "negotiable": data.get("negotiable", False),
             "in_stock": in_stock,
             "warranty": data.get("warranty") or "",
             "count": session_count,
@@ -1126,7 +1209,7 @@ class ProductDetailView(generics.RetrieveAPIView):
 
     def put(self, request, *args, **kwargs):
         product = self.get_object()
-        count = request.data.get("count", 1)  # ✅ count по умолчанию 1
+        count = request.data.get("count", 1)
 
         try:
             count = int(count)
@@ -1135,30 +1218,24 @@ class ProductDetailView(generics.RetrieveAPIView):
         except ValueError:
             return Response({"error": "Invalid count value"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # ✅ Если count == 1, сбрасываем сессию до состояния БД
-        if count == 1:
-            request.session[f"product_{product.id}_price"] = float(product.price)
-            request.session[f"product_{product.id}_promotion"] = float(
-                product.promotion) if product.promotion else None
-            request.session[f"product_{product.id}_in_stock"] = product.in_stock
-        else:
-            total_price = float(product.price) * count
-            total_promotion = float(product.promotion) * count if product.promotion else None
-            new_in_stock = max(0, product.in_stock - count)
+        # ✅ Фикс: безопасно работаем с None
+        base_price = product.promotion or product.price
+        session_price = float(base_price) * count if (base_price is not None and not product.negotiable) else None
+        session_promotion = float(product.promotion) * count if product.promotion and not product.negotiable else None
+        session_in_stock = product.in_stock if count == 1 else max(0, product.in_stock - count)
 
-            request.session[f"product_{product.id}_price"] = total_price
-            request.session[f"product_{product.id}_promotion"] = total_promotion
-            request.session[f"product_{product.id}_in_stock"] = new_in_stock
-
-        request.session[f"product_{product.id}_count"] = count  # ✅ Сохраняем count в сессии
+        request.session[f"product_{product.id}_count"] = count
+        request.session[f"product_{product.id}_price"] = session_price
+        request.session[f"product_{product.id}_promotion"] = session_promotion
+        request.session[f"product_{product.id}_in_stock"] = session_in_stock
         request.session.modified = True
 
         return Response({
             "id": product.id,
-            "price": request.session[f"product_{product.id}_price"],
-            "promotion": request.session[f"product_{product.id}_promotion"],
-            "in_stock": request.session[f"product_{product.id}_in_stock"],
-            "count": count  # ✅ Добавили count в response
+            "price": session_price if session_price is not None else "Договорная",
+            "promotion": session_promotion,
+            "in_stock": session_in_stock,
+            "count": count
         })
 
 @api_view(["PUT"])
@@ -1341,9 +1418,33 @@ class ProductCreateView(generics.CreateAPIView):
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
-        manual_parameters=[],
-        operation_description="Создание нового товара с изображением",
-        request_body=ProductCreateSerializer
+        operation_summary="Создание нового товара",
+        operation_description="""
+    Этот эндпоинт используется для создания нового товара в админке. 
+    Передайте все необходимые поля, включая характеристики и изображения (image1, ..., image7).
+    """,
+        request_body=ProductCreateSerializer,
+        responses={
+            201: openapi.Response(
+                description="Товар успешно создан",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "success": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=True),
+                        "product_id": openapi.Schema(type=openapi.TYPE_INTEGER, example=123),
+                        "message": openapi.Schema(type=openapi.TYPE_STRING, example="Товар успешно создан")
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Ошибка валидации",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    additional_properties=openapi.Schema(type=openapi.TYPE_STRING)
+                )
+            )
+        },
+        tags=["Admin - Products"]
     )
     def post(self, request, *args, **kwargs):
         serializer = ProductCreateSerializer(data=request.data)
@@ -1355,4 +1456,53 @@ class ProductCreateView(generics.CreateAPIView):
                 "message": "Товар успешно создан"
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class ProductUpdateDeleteView(APIView):
+    @swagger_auto_schema(
+        operation_summary="Обновление полей товара",
+        operation_description="Обновляет цену, договорность, акцию и наличие по ID",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "price": openapi.Schema(type=openapi.TYPE_NUMBER, description="Цена товара"),
+                "negotiable": openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Договорная цена"),
+                "promotion": openapi.Schema(type=openapi.TYPE_NUMBER, description="Цена по акции"),
+                "in_stock": openapi.Schema(type=openapi.TYPE_INTEGER, description="Количество на складе"),
+            }
+        ),
+        responses={200: "Успешно обновлено", 404: "Товар не найден"},
+        tags=["Product"]
+    )
+    def put(self, request, pk):
+        product = get_object_or_404(Product, id=pk)
+
+        negotiable = request.data.get("negotiable", product.negotiable)
+        product.negotiable = negotiable
+
+        if product.negotiable:
+            product.price = None
+            product.promotion = 0
+        else:
+            product.price = request.data.get("price", product.price)
+            product.promotion = request.data.get("promotion", product.promotion)
+
+        if "in_stock" in request.data:
+            product.in_stock = request.data.get("in_stock")
+
+        product.save()
+        return Response({"success": "Товар успешно обновлён"}, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        operation_summary="Удаление товара",
+        operation_description="Удаляет товар по его ID",
+        responses={204: "Удалено", 404: "Товар не найден"},
+        tags=["Product"]
+    )
+    def delete(self, request, pk):
+        product = get_object_or_404(Product, id=pk)
+        product.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 

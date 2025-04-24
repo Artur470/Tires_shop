@@ -68,7 +68,7 @@ class Product(models.Model):
     image5 = CloudinaryField('image5', null=True, blank=True)
     image6 = CloudinaryField('image6', null=True, blank=True)
     image7 = CloudinaryField('image7', null=True, blank=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     negotiable = models.BooleanField(default=False)
     promotion = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     promotion_end_date = models.DateTimeField(null=True, blank=True)

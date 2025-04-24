@@ -5,61 +5,33 @@ from product.serializers import *
 
 class ProductSerializer(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id', help_text="id товара")
-    image1 = serializers.SerializerMethodField(help_text="изображение шин #1")
-    image2 = serializers.SerializerMethodField(help_text="изображение шин #2")
-    image3 = serializers.SerializerMethodField(help_text="изображение шин #3")
-    image4 = serializers.SerializerMethodField(help_text="изображение шин #4")
-    image5 = serializers.SerializerMethodField(help_text="изображение шин #5")
-    image6 = serializers.SerializerMethodField(help_text="изображение шин #6")
-    image7 = serializers.SerializerMethodField(help_text="изображение шин #7")
+    image = serializers.SerializerMethodField(help_text="Список изображении")
     in_stock = serializers.IntegerField(help_text="количество шины в складе")
     price = serializers.SerializerMethodField()
     count = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
-        fields = ['product_Id', 'title', 'price', 'image1', 'image2', 'image3', 'image4', 'image5', 'image6', 'image7', 'in_stock', 'count']
+        fields = ['product_Id', 'title', 'price', 'image','in_stock', 'count']
 
-    def get_image1(self, obj):
-        if obj.image1:
-            return obj.image1.url
-        return None
-
-    def get_image2(self, obj):
-        if obj.image2:
-            return obj.image2.url
-        return None
-
-    def get_image3(self, obj):
-        if obj.image3:
-            return obj.image3.url
-        return None
-
-    def get_image4(self, obj):
-        if obj.image4:
-            return obj.image4.url
-        return None
-
-    def get_image5(self, obj):
-        if obj.image5:
-            return obj.image5.url
-        return None
-
-    def get_image6(self, obj):
-        if obj.image6:
-            return obj.image6.url
-        return None
-
-    def get_image7(self, obj):
-        if obj.image7:
-            return obj.image7.url
-        return None
-
+    def get_image(self, obj):
+        return [
+            obj.image1.url if obj.image1 else None,
+            obj.image2.url if obj.image2 else None,
+            obj.image3.url if obj.image3 else None,
+            obj.image4.url if obj.image4 else None,
+            obj.image5.url if obj.image5 else None,
+            obj.image6.url if obj.image6 else None,
+            obj.image7.url if obj.image7 else None,
+        ]
 
     def get_price(self, obj):
-        count = self.context.get('count', 1)
-        unit_price = obj.promotion if obj.promotion else obj.price
-        return unit_price * count
+        if obj.negotiable:
+            return "Договорная"
+        return float(obj.price) if obj.price is not None else None
+
+
+
 
     def get_count(self, obj):
         return self.context.get('count', 1)
@@ -67,15 +39,33 @@ class ProductSerializer(serializers.ModelSerializer):
 class CartItemSerializer(serializers.ModelSerializer):
     product = serializers.SerializerMethodField()
 
-
-
     class Meta:
         model = CartItem
         fields = ['product']
 
     def get_product(self, obj):
-        return ProductSerializer(obj.product, context={'count': obj.count}).data
+        product = obj.product
+        count = obj.count
 
+        unit_price = float(product.promotion) if product.promotion else float(product.price or 0)
+        total_price = unit_price * count
+
+        return {
+            "product_Id": product.id,
+            "title": product.title,
+            "price": total_price if not product.negotiable else "Договорная",
+            "image": [
+                product.image1.url if product.image1 else None,
+                product.image2.url if product.image2 else None,
+                product.image3.url if product.image3 else None,
+                product.image4.url if product.image4 else None,
+                product.image5.url if product.image5 else None,
+                product.image6.url if product.image6 else None,
+                product.image7.url if product.image7 else None,
+            ],
+            "in_stock": product.in_stock,
+            "count": count,
+        }
 class CartSerializer(serializers.ModelSerializer):
     cart_Id = serializers.IntegerField(source='id', help_text="id карты")
     cart_items = serializers.SerializerMethodField()
@@ -112,9 +102,16 @@ class CartSerializer(serializers.ModelSerializer):
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_title = serializers.CharField(source='product.title')
+    price = serializers.SerializerMethodField()
     class Meta:
         model = OrderItem
         fields = ['product', 'price', 'count', "product_title"]
+
+
+    def get_price(self, obj):
+        if obj.negotiable:
+            return "Договорная"
+        return float(obj.price) if obj.price is not None else None
 
 
 

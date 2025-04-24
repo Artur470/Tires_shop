@@ -11,7 +11,8 @@ from .views import (
     ProductAutocompleteView,
     NewsListView,
     NewsDetailView,
-    NewsCreateView,  ProductCreateView
+    NewsCreateView, ProductCreateView,
+    ProductUpdateDeleteView, FilterDetailView
 )
 urlpatterns = [
     path('all/', ProductListView.as_view()),
@@ -25,10 +26,9 @@ urlpatterns = [
     path('news_list/', NewsListView.as_view(), name='news-list'),
     path('news_create/', NewsCreateView.as_view(), name='news-list'),
     path('news/<int:pk>/', NewsDetailView.as_view(), name='news-detail'),
-    path('create/', ProductCreateView.as_view(), name='product-create'),
-
-
-
+    path('create/', ProductCreateView.as_view(), name='product-admin'),
+    path('filter-detail/', FilterDetailView.as_view(), name='filter-detail'),
+    path('<int:pk>/edit/', ProductUpdateDeleteView.as_view(), name='product-edit-delete'),
 ]
 
 

@@ -244,8 +244,6 @@ class UserMeView(generics.RetrieveAPIView):
         if not user.is_authenticated:
             raise AuthenticationFailed('Authentication credentials were not provided.')
 
-
-
         user_orders = Order.objects.filter(user=user, applications=True) \
             .prefetch_related('items__product') \
             .order_by('-created_at')
@@ -257,15 +255,15 @@ class UserMeView(generics.RetrieveAPIView):
 
         for order in paginated_orders:
             total_price = 0
-
-            for item in order.items.all():  # Предполагается: order.items -> CartItem
+            for item in order.items.all():
                 product = item.product
-                price = product.promotion if product.promotion else product.price
-                total_price += price * item.count
+                price = item.price or product.promotion or product.price
+                if price is not None:
+                    total_price += float(price) * item.count
 
             history.append({
                 "id_order": order.id,
-                "total_price": float(total_price),
+                "total_price": float(total_price) if total_price else "Договорная",
                 "date_order": order.created_at,
             })
 
@@ -277,6 +275,7 @@ class UserMeView(generics.RetrieveAPIView):
         }
 
         return paginator.get_paginated_response(response_data)
+
 
 class UserApplicationsDetail(APIView):
     permission_classes = [IsAuthenticated]
@@ -320,7 +319,6 @@ class UserApplicationsDetail(APIView):
             401: "Unauthorized"
         }
     )
-
     def get(self, request, order_id):
         user = request.user
 
@@ -339,22 +337,26 @@ class UserApplicationsDetail(APIView):
         for item in order_items:
             product = item.product
             regular_price = product.price
-            has_promo = product.promotion is not None
-            promo_price = product.promotion if has_promo else regular_price
+            promo_price = product.promotion if product.promotion is not None else regular_price
 
-            line_sub_total = regular_price * item.count
-            line_total = promo_price * item.count
+            price_used = promo_price if promo_price is not None else None
+
+            if price_used is not None:
+                line_sub_total = regular_price * item.count if regular_price is not None else 0
+                line_total = price_used * item.count
+                total_price += line_total
+                sub_total += line_sub_total
+            else:
+                line_total = "Договорная"
+
+            if product.promotion:
+                promotion_total += product.promotion * item.count
 
             total_quantity += item.count
-            sub_total += line_sub_total
-            total_price += line_total
-
-            if has_promo:
-                promotion_total += product.promotion * item.count
 
             items_data.append({
                 "product_title": product.title,
-                "price": float(line_total),
+                "price": float(line_total) if isinstance(line_total, (float, int)) else line_total,
                 "count": item.count
             })
 
@@ -363,11 +365,10 @@ class UserApplicationsDetail(APIView):
             "created_at": order.created_at,
 
             "total_quantity": total_quantity,
-            "sub_total": float(sub_total),
+            "sub_total": float(sub_total) if sub_total else "Договорная",
             "promotion_total": float(promotion_total),
-            "total_price": float(total_price),
+            "total_price": float(total_price) if total_price else "Договорная",
             "items": items_data,
-
         })
 
 class UserProfileUpdateView(generics.GenericAPIView):
