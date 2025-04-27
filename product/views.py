@@ -93,12 +93,12 @@ class ProductAutocompleteView(APIView):
         operation_description="Этот эндпоинт предоставляет автодополнение для товаров, включая их название, производителя и модель.",
         manual_parameters=[
             openapi.Parameter(
-                'q',  # имя параметра
-                openapi.IN_QUERY,  # где будет использоваться параметр (в запросе)
+                'q',
+                openapi.IN_QUERY,
                 description='Текст для поиска товаров. Может быть частью названия товара, производителя или модели.',
-                required=True,  # параметр обязательный
-                type=openapi.TYPE_STRING,  # тип параметра
-                example='giog'  # пример значения параметра
+                required=True,
+                type=openapi.TYPE_STRING,
+                example='giog'
             )
         ],
         responses={
@@ -124,7 +124,63 @@ class ProductAutocompleteView(APIView):
                 Q(model__icontains=query)
             ).only('id', 'title', 'manufacturer', 'model')
 
-            # Сортировка: сначала по title, потом по manufacturer, потом по model
+            products = sorted(
+                products,
+                key=lambda p: (
+                    (query.lower() in p.title.lower(), 2),
+                    (query.lower() in p.manufacturer.lower(), 1),
+                    (query.lower() in p.model.lower(), 0)
+                ),
+                reverse=True
+            )
+
+            return Response([{
+                "id": p.id,
+                "title": p.title,
+                "manufacturer": p.manufacturer,
+                "model": p.model
+            } for p in products[:10]])
+
+        return Response([])
+
+    @swagger_auto_schema(
+        tags=['Product'],
+        operation_summary="Автодополнение для товаров",
+        operation_description="Этот эндпоинт предоставляет автодополнение для товаров по названию, производителю или модели. Пользователь может отправить запрос с параметром 'q' для поиска товаров.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'q': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Текст для поиска товаров. Может быть частью названия товара, производителя или модели.',
+                    example='giog'
+                ),
+            },
+            required=['q']
+        ),
+        responses={
+            200: openapi.Response(
+                description='Успешный ответ с результатами автодополнения.',
+                schema=ProductAutocompleteSerializer(many=True)
+            ),
+            400: openapi.Response(
+                description='Ошибка запроса, например, отсутствует параметр "q".'
+            ),
+            404: openapi.Response(
+                description='Товары не найдены, соответствующие запросу.'
+            )
+        }
+    )
+    def post(self, request, *args, **kwargs):
+        query = request.data.get('q', '').strip()
+
+        if query:
+            products = Product.objects.filter(
+                Q(title__icontains=query) |
+                Q(manufacturer__icontains=query) |
+                Q(model__icontains=query)
+            ).only('id', 'title', 'manufacturer', 'model')
+
             products = sorted(
                 products,
                 key=lambda p: (
