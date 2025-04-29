@@ -279,6 +279,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         return float(obj.price) if obj.price is not None else None
 
     def get_image(self, obj):
+
         return [
             obj.image1.url if obj.image1 else None,
             obj.image2.url if obj.image2 else None,
@@ -303,6 +304,8 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
 
 class NewsSerializer(serializers.ModelSerializer):
+    news_image = serializers.SerializerMethodField(help_text="Словарь всех изображений новостей")
+
     class Meta:
         model = News
         fields = ["id", "news_image", "news_title", "news_time", "news_description"]
@@ -310,8 +313,26 @@ class NewsSerializer(serializers.ModelSerializer):
             "news_description": {"write_only": True}
         }
 
+
+
+
+    def get_news_image(self, obj):
+        return [
+            obj.news_image1.url if obj.news_image1 else None,
+            obj.news_image2.url if obj.news_image2 else None,
+            obj.news_image3.url if obj.news_image3 else None,
+            obj.news_image4.url if obj.news_image4 else None,
+            obj.news_image5.url if obj.news_image5 else None,
+            obj.news_image6.url if obj.news_image6 else None,
+            obj.news_image7.url if obj.news_image7 else None,
+        ]
+
+
 class NewsDetailSerializer(serializers.ModelSerializer):
     related_news = serializers.SerializerMethodField()
+
+    news_image = serializers.SerializerMethodField(help_text="Словарь всех изображений новостей")
+
 
     class Meta:
         model = News
@@ -324,4 +345,15 @@ class NewsDetailSerializer(serializers.ModelSerializer):
         ).exclude(id=obj.id).distinct()[:5]
 
         return NewsSerializer(related_news, many=True).data
+
+    def get_news_image(self, obj):
+        return [
+            obj.news_image1.url if obj.news_image1 else None,
+            obj.news_image2.url if obj.news_image2 else None,
+            obj.news_image3.url if obj.news_image3 else None,
+            obj.news_image4.url if obj.news_image4 else None,
+            obj.news_image5.url if obj.news_image5 else None,
+            obj.news_image6.url if obj.news_image6 else None,
+            obj.news_image7.url if obj.news_image7 else None,
+        ]
 

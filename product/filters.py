@@ -77,6 +77,9 @@ class ProductFilter(django_filters.FilterSet):
         # Фильтруем товары по связанному полю body_type__value
         return queryset.filter(body_type__value=value)
 
+
+
+
 class BooleanFlexibleFilter(django_filters.Filter):
     def filter(self, qs, value):
         if value is None:

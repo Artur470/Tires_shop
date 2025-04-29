@@ -1,4 +1,4 @@
-
+from cloudinary.uploader import unsigned_upload
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from cloudinary.models import CloudinaryField
@@ -141,7 +141,13 @@ class Comment(models.Model):
 
 
 class News(models.Model):
-    news_image = CloudinaryField('image')
+    news_image1 = CloudinaryField('image1')
+    news_image2 = CloudinaryField('image2', null=True, blank=True)
+    news_image3 = CloudinaryField('image3', null=True, blank=True)
+    news_image4 = CloudinaryField('image4', null=True, blank=True)
+    news_image5 = CloudinaryField('image5', null=True, blank=True)
+    news_image6 = CloudinaryField('image6', null=True, blank=True)
+    news_image7 = CloudinaryField('image7', null=True, blank=True)
     news_title = models.CharField(max_length=255)
     news_time = models.DateTimeField(auto_now_add=True)
     news_description = models.TextField()

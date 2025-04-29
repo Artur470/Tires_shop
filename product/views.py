@@ -40,7 +40,7 @@ from drf_yasg import openapi
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-
+from django.http import QueryDict
 import logging
 from rest_framework.views import APIView
 from .models import Product,  Comment, BodyType, News
@@ -759,7 +759,9 @@ class ProductListView(generics.ListAPIView):
         sort_by_price = self.request.session.get('sort_by_price')
 
         if product_filters:
-            filterset = ProductFilterall(product_filters, queryset=queryset)
+            query_dict = QueryDict('', mutable=True)
+            query_dict.update(product_filters)
+            filterset = ProductFilterall(query_dict, queryset=queryset)
             queryset = filterset.qs
 
         if sort_by_price == "cheap":
@@ -1514,6 +1516,7 @@ class NewsCreateView(APIView):
             )
         }
     )
+
     def post(self, request):
         serializer = NewsSerializer(data=request.data)
         if serializer.is_valid():
