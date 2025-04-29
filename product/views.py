@@ -15,6 +15,7 @@ from rest_framework import serializers
 from decimal import Decimal
 from functools import reduce
 import requests
+from django.urls import reverse
 from drf_yasg.utils import swagger_auto_schema
 from django.db.models import Min, Max
 from django.db.models import Min, Max, Case, When, Value, BooleanField
@@ -500,24 +501,14 @@ class FavoriteProduct(APIView):
         }
     )
     def get(self, request):
-        # Получаем все избранные продукты
-        queryset = Product.objects.filter(is_favorite=True)
-
-        # Сериализуем данные
+        queryset = Product.objects.filter(is_favorite=True).order_by('-favorite_created_at')
         serializer = FavoriteProductListSerializer(queryset, many=True)
-
-        # Получаем количество избранных товаров
         total_favorites = queryset.count()
 
-        # Переставляем элементы, чтобы новый товар был в начале
-        favorites = serializer.data
-        favorites.reverse()  # Меняем порядок на противоположный
-
-        # Возвращаем ответ с добавлением количества товаров в избранном
         return Response({
             "total_favorites": total_favorites,
-            "favorites": favorites
-        }, status=status.HTTP_200_OK)
+            "favorites": serializer.data
+        })
 
 
     @swagger_auto_schema(
@@ -569,37 +560,34 @@ class FavoriteProduct(APIView):
         }
     )
     def post(self, request):
-        # Получаем данные из POST-запроса
-        product_id = request.data.get('product_id')
-        is_favorite = request.data.get('is_favorite')
+        product_id = request.data.get("product_id")
+        if not product_id:
+            return Response({"error": "product_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if product_id is None:
-            return Response({"detail": "Product ID is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Получаем продукт по ID
         product = get_object_or_404(Product, id=product_id)
 
-        # Если is_favorite передано в запросе, обновляем статус
-        if is_favorite is not None:
-            product.is_favorite = is_favorite
+        if not product.is_favorite:
+            product.is_favorite = True
+            product.favorite_created_at = timezone.now()
         else:
-            # Если is_favorite не передано, меняем его на противоположное
-            product.is_favorite = not product.is_favorite
+            product.is_favorite = False
+            product.favorite_created_at = None
 
-        # Сохраняем продукт с обновленным значением is_favorite
         product.save()
 
-        # Если статус is_favorite True, добавляем товар в избранное через запрос
-        if product.is_favorite:
-            self.add_to_favorites(product.id)
+        # 🛠️ После сохранения — заново достаем актуальный список
+        queryset = Product.objects.filter(is_favorite=True).order_by('-favorite_created_at')
+        serializer = FavoriteProductListSerializer(queryset, many=True)
+        total_favorites = queryset.count()
 
-        # Сериализуем обновленный продукт
-        serializer = FavoriteProductListSerializer(product)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({
+            "total_favorites": total_favorites,
+            "favorites": serializer.data
+        }, status=status.HTTP_200_OK)
 
     def add_to_favorites(self, product_id):
         # Здесь отправляем запрос на /product/favorites/ для добавления товара в избранное
-        url = "http://127.0.0.1:8000/product/favorites/"
+        url = self.request.build_absolute_uri(reverse('favorite-products'))
         data = {
             "product_id": product_id,
             "is_favorite": True
@@ -693,6 +681,7 @@ class ProductCommentListView(generics.ListAPIView):
     def get_queryset(self):
         product_id = self.kwargs["product_id"]
         return Comment.objects.filter(product_id=product_id)
+
 class CustomPagination(PageNumberPagination):
     page_size = 12
     page_size_query_param = 'page_size'
@@ -712,7 +701,7 @@ class CustomPagination(PageNumberPagination):
             'next_page': self.page.next_page_number() if self.page.has_next() else None,
             'previous_page': self.page.previous_page_number() if self.page.has_previous() else None,
             'pages': page_numbers,
-            'total_count': self.page.paginator.count,  # 👈 Добавил total_count сюда
+            'total_count': Product.objects.count(), # 👈 Добавил total_count сюда
             'products': data
         })
 
@@ -778,7 +767,6 @@ class ProductListView(generics.ListAPIView):
                     default=F('price')
                 ).desc()
             )
-
         return queryset
 
     @swagger_auto_schema(
@@ -1294,7 +1282,7 @@ class ProductDetailView(generics.RetrieveAPIView):
                 "load_index_for_double": product.load_index_for_double,
             },
             "title": data.get("title", product.title),
-            "favorite": product.is_favorite,
+            "is_favorite": product.is_favorite,
             "image": data.get("image"),
             "promotion": promotion,
             "average_rating": data.get("average_rating", 0.0),
@@ -1308,6 +1296,7 @@ class ProductDetailView(generics.RetrieveAPIView):
             "count": session_count,
             "similar_products": similar_products_data,
         })
+
     def post(self, request, *args, **kwargs):
         """🔄 Переключение избранного"""
         product = self.get_object()
@@ -1315,7 +1304,7 @@ class ProductDetailView(generics.RetrieveAPIView):
         product.save()
 
         return Response(
-            {"id": product.id, "favorite": product.is_favorite},
+            {"id": product.id, "is_favorite": product.is_favorite},
             status=status.HTTP_200_OK
         )
 
@@ -1391,6 +1380,8 @@ class ProductCommentListView(generics.ListAPIView):
 
 
 
+
+
 class NewsCustomLimitOffsetPagination(LimitOffsetPagination):
     default_limit = 6
     max_limit = None
@@ -1444,9 +1435,6 @@ class NewsListView(APIView):
 
 
 class NewsDetailView(APIView):
-
-
-
     @swagger_auto_schema(
         operation_description="Получить подробную информацию о новости по ID",
         responses={
@@ -1470,6 +1458,8 @@ class NewsDetailView(APIView):
         news = get_object_or_404(News, pk=pk)
         serializer = NewsDetailSerializer(news)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 
 
 class NewsCreateView(APIView):

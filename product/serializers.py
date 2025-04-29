@@ -182,6 +182,7 @@ class CommentSerializer(serializers.ModelSerializer):
     product_id = serializers.IntegerField()  # Изменяем на product_id
     rating = serializers.DecimalField(max_digits=2, decimal_places=1)
     username = serializers.CharField(source='user.username', read_only=True)
+
     class Meta:
         model = Comment
         fields = ['id', 'product_id', 'comment', 'rating', 'created_at', 'username']

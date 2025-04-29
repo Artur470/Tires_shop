@@ -80,6 +80,7 @@ class Product(models.Model):
     load_index = models.CharField(max_length=500)
     load_index_for_double = models.CharField(max_length=200)
     is_favorite = models.BooleanField(default=False)
+    favorite_created_at = models.DateTimeField(null=True, blank=True)
     manufacturer = models.CharField(max_length=100)
     model = models.CharField(max_length=255)
     generation = models.CharField(max_length=100)

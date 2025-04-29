@@ -29,7 +29,6 @@ urlpatterns = [
     path('create/', ProductCreateView.as_view(), name='product-admin'),
     path('filter-detail/', FilterDetailView.as_view(), name='filter-detail'),
     path('<int:pk>/edit/', ProductUpdateDeleteView.as_view(), name='product-edit-delete'),
-
     path('filter_dop/', ProductSortView.as_view(), name='product-filter-sort' ),
 ]
 
