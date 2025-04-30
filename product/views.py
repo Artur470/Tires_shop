@@ -276,7 +276,7 @@ class HomepageView(ListAPIView):
                                     "title": openapi.Schema(type=openapi.TYPE_STRING, description="Название товара"),
                                     "in_stock": openapi.Schema(type=openapi.TYPE_INTEGER,
                                                                description="Количество товара в наличии"),
-                                    "price": openapi.Schema(type=openapi.TYPE_STRING, description="Цена товара"),
+                                    "price": openapi.Schema(type=openapi.TYPE_STRING, description="Цена товара либо же договорная"),
                                     "is_favorite": openapi.Schema(type=openapi.TYPE_BOOLEAN,
                                                                   description="Признак избранного товара"),
                                 }
@@ -410,25 +410,37 @@ class HomepageView(ListAPIView):
         }
     )
     def post(self, request):
-        product_id = request.data.get('product_id')
-        is_favorite = request.data.get('is_favorite')
+        product_id = request.data.get("product_id")
+        if not product_id:
+            return Response({"error": "product_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not product_id or is_favorite is None:
-            return Response({"detail": "Product ID and is_favorite are required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Получаем продукт по ID
         product = get_object_or_404(Product, id=product_id)
 
-        # Обновляем поле is_favorite, добавляя в избранное
-        product.is_favorite = is_favorite
+        requested_flag = request.data.get("is_favorite")
+
+        if requested_flag is not None:
+            if requested_flag:
+                product.is_favorite = True
+                product.favorite_created_at = timezone.now()  # ✅ Всегда обновляем
+            else:
+                product.is_favorite = False
+                product.favorite_created_at = None
+        else:
+            # Переключаем
+            product.is_favorite = not product.is_favorite
+            product.favorite_created_at = timezone.now() if product.is_favorite else None
+
         product.save()
 
-        # Возвращаем обновленный товар
+        queryset = Product.objects.filter(is_favorite=True).order_by('-favorite_created_at')
+        serializer = FavoriteProductListSerializer(queryset, many=True)
+        total_favorites = queryset.count()
+
         return Response({
-            "id": product.id,
-            "name": product.title,
-            "is_favorite": product.is_favorite
+            "total_favorites": total_favorites,
+            "favorites": serializer.data
         }, status=status.HTTP_200_OK)
+
     def get_queryset(self):
         queryset = super().get_queryset()
         return self.filter_queryset(queryset)
@@ -566,16 +578,22 @@ class FavoriteProduct(APIView):
 
         product = get_object_or_404(Product, id=product_id)
 
-        if not product.is_favorite:
-            product.is_favorite = True
-            product.favorite_created_at = timezone.now()
+        requested_flag = request.data.get("is_favorite")
+
+        if requested_flag is not None:
+            if requested_flag:
+                product.is_favorite = True
+                product.favorite_created_at = timezone.now()  # ✅ Всегда обновляем
+            else:
+                product.is_favorite = False
+                product.favorite_created_at = None
         else:
-            product.is_favorite = False
-            product.favorite_created_at = None
+            # Переключаем
+            product.is_favorite = not product.is_favorite
+            product.favorite_created_at = timezone.now() if product.is_favorite else None
 
         product.save()
 
-        # 🛠️ После сохранения — заново достаем актуальный список
         queryset = Product.objects.filter(is_favorite=True).order_by('-favorite_created_at')
         serializer = FavoriteProductListSerializer(queryset, many=True)
         total_favorites = queryset.count()
@@ -954,22 +972,36 @@ class ProductListView(generics.ListAPIView):
     )
 
     def post(self, request):
-        """
-        Обрабатывает POST-запрос для добавления/удаления товара из избранного.
-        """
-        product_id = request.data.get("product_id")  # Получаем ID из тела запроса
+        product_id = request.data.get("product_id")
         if not product_id:
             return Response({"error": "product_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         product = get_object_or_404(Product, id=product_id)
-        product.is_favorite = not product.is_favorite  # Переключаем флаг
+
+        requested_flag = request.data.get("is_favorite")
+
+        if requested_flag is not None:
+            if requested_flag:
+                product.is_favorite = True
+                product.favorite_created_at = timezone.now()  # ✅ Всегда обновляем
+            else:
+                product.is_favorite = False
+                product.favorite_created_at = None
+        else:
+            # Переключаем
+            product.is_favorite = not product.is_favorite
+            product.favorite_created_at = timezone.now() if product.is_favorite else None
+
         product.save()
 
-        return Response(
-            {"product_id": product.id, "is_favorite": product.is_favorite},
-            status=status.HTTP_200_OK
-        )
+        queryset = Product.objects.filter(is_favorite=True).order_by('-favorite_created_at')
+        serializer = FavoriteProductListSerializer(queryset, many=True)
+        total_favorites = queryset.count()
 
+        return Response({
+            "total_favorites": total_favorites,
+            "favorites": serializer.data
+        }, status=status.HTTP_200_OK)
 
 
 class ProductSortView(APIView):
@@ -1297,16 +1329,38 @@ class ProductDetailView(generics.RetrieveAPIView):
             "similar_products": similar_products_data,
         })
 
-    def post(self, request, *args, **kwargs):
-        """🔄 Переключение избранного"""
-        product = self.get_object()
-        product.is_favorite = not product.is_favorite  # Инвертируем статус
+    def post(self, request):
+        product_id = request.data.get("product_id")
+        if not product_id:
+            return Response({"error": "product_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        product = get_object_or_404(Product, id=product_id)
+
+        requested_flag = request.data.get("is_favorite")
+
+        if requested_flag is not None:
+            if requested_flag:
+                product.is_favorite = True
+                product.favorite_created_at = timezone.now()  # ✅ Всегда обновляем
+            else:
+                product.is_favorite = False
+                product.favorite_created_at = None
+        else:
+            # Переключаем
+            product.is_favorite = not product.is_favorite
+            product.favorite_created_at = timezone.now() if product.is_favorite else None
+
         product.save()
 
-        return Response(
-            {"id": product.id, "is_favorite": product.is_favorite},
-            status=status.HTTP_200_OK
-        )
+        queryset = Product.objects.filter(is_favorite=True).order_by('-favorite_created_at')
+        serializer = FavoriteProductListSerializer(queryset, many=True)
+        total_favorites = queryset.count()
+
+        return Response({
+            "total_favorites": total_favorites,
+            "favorites": serializer.data
+        }, status=status.HTTP_200_OK)
+
 
     def put(self, request, *args, **kwargs):
         product = self.get_object()

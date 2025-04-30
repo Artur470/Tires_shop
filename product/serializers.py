@@ -135,7 +135,7 @@ class FavoriteProductListSerializer(serializers.ModelSerializer):
     average_rating = serializers.SerializerMethodField(help_text="средний статистический рейтинг")
     comments_count = serializers.IntegerField(source="comment_set.count", read_only=True,
                                               help_text="количество комментариев")
-
+    price = serializers.SerializerMethodField(help_text="Цена или 'Договорная'")
     class Meta:
         model = Product
         fields = ['product_Id', 'image', 'price','promotion', 'negotiable', 'season', 'title', 'in_stock', 'is_favorite', 'average_rating', 'comments_count']
@@ -153,14 +153,13 @@ class FavoriteProductListSerializer(serializers.ModelSerializer):
 
     def get_season(self, obj):
         if obj.season:
-            return {
-                "label": obj.season.label,
-                "value": obj.season.value
-            }
+            return obj.season.value  # Возвращаем значение label, а не id
         return None
 
-
-
+    def get_price(self, obj):
+        if obj.negotiable:
+            return "Договорная"
+        return float(obj.price) if obj.price is not None else None
 
     def get_comments_count(self, obj):
         return obj.comments.count()
@@ -199,7 +198,6 @@ class ProductSerializerll(serializers.ModelSerializer):
     image = serializers.SerializerMethodField(help_text="Словарь всех изображений шин")
     season = serializers.SerializerMethodField(help_text="Сезонность шин: лето, зима, всесезонные.")
     is_favorite = serializers.BooleanField(default=False, help_text="избранный в каталоге который добавляет в избранные если равна к true.")
-
     price = serializers.SerializerMethodField(help_text="Цена или 'Договорная'")
     in_stock = serializers.IntegerField(help_text="количество шины в складе")
     title = serializers.CharField(max_length=100, help_text="названия шины")
