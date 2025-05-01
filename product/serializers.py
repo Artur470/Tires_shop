@@ -1,6 +1,6 @@
 
 from rest_framework import serializers
-from .models import Product, Comment, News, Condition, Season, TireType, BodyType
+from .models import Product, Comment, News, Season, TireType, BodyType
 from drf_yasg import openapi
 from django.db.models import Sum
 from .utils import round_to_half
@@ -10,6 +10,7 @@ from drf_yasg.utils import swagger_auto_schema
 from django.db.models import Sum
 from django.core.exceptions import ObjectDoesNotExist
 from deep_translator import GoogleTranslator
+from difflib import get_close_matches
 
 # Словарь для перевода с русского на английский
 RUS_TO_ENG = {
@@ -27,6 +28,86 @@ RUS_TO_ENG = {
     'Компрессоры': 'Compressors',
 }
 
+BODY_TYPES_RUS_TO_ENG = {
+    'Седан': 'Sedan',
+    'Купе': 'Coupe',
+    'Кабриолет / Конвертируемый': 'Convertible',
+    'Родстер': 'Roadster',
+    'Хэтчбек': 'Hatchback',
+    'Лифтбэк': 'Liftback',
+    'Фастбэк': 'Fastback',
+    'Универсал': 'Station Wagon',
+    'Кроссовер': 'Crossover',
+    'Внедорожник (SUV)': 'Sport Utility Vehicle (SUV)',
+    'Пикап': 'Pickup Truck',
+    'Минивэн': 'Minivan',
+    'Фургон / Вэн': 'Van',
+    'Каблук (компактный фургон)': 'Panel Van',
+    'Лимузин': 'Limousine',
+    'Микроавтомобиль': 'Microcar',
+    'Гранд турер (GT)': 'Grand Tourer (GT)',
+    'Спортивный автомобиль': 'Sports Car',
+    'Маслкар': 'Muscle Car',
+    'Пони-кар': 'Pony Car',
+    'Каммбэк': 'Kammback',
+    'Тарга': 'Targa Top',
+    'Тарпан': 'Tarpan',
+    'Купе-кроссовер': 'Coupe-Crossover',
+    'Седан-кроссовер': 'Sedan-Crossover',
+    'Фургон с высоким потолком': 'High Roof Van',
+    'Фургон с низким потолком': 'Low Roof Van',
+    'Кемпер': 'Camper Van',
+    'Автодом': 'Motorhome',
+    'Трехколесный автомобиль': 'Three-Wheeler',
+    'Электромобиль': 'Electric Car',
+    'Гибридный автомобиль': 'Hybrid Car',
+    'Водородный автомобиль': 'Hydrogen Car',
+    'Автономный автомобиль': 'Self-Driving Car',
+    'Грузовик': 'Truck',
+    'Коммерческий автомобиль': 'Commercial Vehicle',
+    'Специальный автомобиль': 'Special Purpose Vehicle',
+}
+
+TIRE_TYPES_RUS_TO_ENG = {
+    'Фрикционные шины (липучка)': 'Friction tires (non-studded)',
+    'Шипованные шины': 'Studded tires',
+    'Туринговые шины': 'Touring tires',
+    'Шоссейные шины': 'Highway tires',
+    'Спортивные шины': 'Performance tires',
+    'Грузовые шины': 'Truck tires',
+    'Легковые шины': 'Passenger tires',
+    'Внедорожные шины': 'Off-road tires',
+    'Шины MT (грязевые)': 'Mud-terrain tires',
+    'Шины AT (все местности)': 'All-terrain tires',
+    'Радиальные шины': 'Radial tires',
+    'Диагональные шины': 'Bias-ply tires',
+    'Bias-belted шины': 'Bias-belted tires',
+    'Камерные шины': 'Tube-type tires',
+    'Бескамерные шины': 'Tubeless tires',
+    'Run-flat шины': 'Run-flat tires',
+    'Airless шины': 'Airless (Non-pneumatic) tires',
+    'Трубчатые шины': 'Tubular tires',
+    'Сельскохозяйственные шины': 'Agricultural tires',
+    'Индустриальные шины': 'Industrial tires',
+    'Шины для спецтехники': 'Special machinery tires',
+    'Самогерметизирующиеся шины': 'Self-sealing tires',
+    'Шины с низким сопротивлением качению': 'Low rolling resistance tires',
+    'Асимметричные шины': 'Asymmetric tires',
+    'Симметричные шины': 'Symmetric tires',
+    'Направленные шины': 'Directional tires',
+}
+
+TIRE_ENG_TO_RUS = {v: k for k, v in TIRE_TYPES_RUS_TO_ENG.items()}
+BODY_ENG_TO_RUS = {v: k for k, v in BODY_TYPES_RUS_TO_ENG.items()}
+
+
+
+def fuzzy_translate(eng_value: str, dictionary: dict) -> str:
+    matches = get_close_matches(eng_value, dictionary.keys(), n=1, cutoff=0.6)
+    if not matches:
+        raise serializers.ValidationError({"value": f"Не удалось найти похожее значение для '{eng_value}'"})
+    return dictionary[matches[0]]
+
 class TireTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = TireType
@@ -34,8 +115,10 @@ class TireTypeSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         value = validated_data['value']
-        label = GoogleTranslator(source='en', target='ru').translate(value)
+        label = fuzzy_translate(value, TIRE_ENG_TO_RUS)
         return TireType.objects.create(value=value, label=label)
+
+
 
 class BodyTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -44,8 +127,9 @@ class BodyTypeSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         value = validated_data['value']
-        label = GoogleTranslator(source='en', target='ru').translate(value)
+        label = fuzzy_translate(value, BODY_ENG_TO_RUS)
         return BodyType.objects.create(value=value, label=label)
+
 
 class ForeignKeyByValueField(serializers.PrimaryKeyRelatedField):
     """

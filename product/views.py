@@ -901,7 +901,11 @@ class ProductListView(generics.ListAPIView):
                                     ),
                                     "price": openapi.Schema(
                                         type=openapi.TYPE_STRING,
-                                        description="Цена товара (учитывает акцию)"
+                                        description="Цена товара (или договорная)"
+                                    ),
+                                    "promotion": openapi.Schema(
+                                        type=openapi.TYPE_STRING,
+                                        description="акции товаров(если нет то null)"
                                     ),
                                     "is_favorite": openapi.Schema(
                                         type=openapi.TYPE_BOOLEAN,
@@ -1142,7 +1146,7 @@ class ProductFilterView(APIView):
             "seasons": Product.objects.values_list("season__value", flat=True).distinct(),
             "manufacturers": Product.objects.values_list("manufacturer", flat=True).distinct(),
             "tire_types": Product.objects.values_list("tire_type__value", flat=True).distinct(),
-            "conditions": Product.objects.values_list("condition__value", flat=True).distinct(),
+            "conditions": Product.objects.values_list("condition", flat=True).distinct(),
             "fuel_efficiency": dict(Product.FUEL_EFFICIENCY_CHOICES),
             "wet_grip": dict(Product.WET_GRIP_CHOICES),
             "min_price": min_final_price,
@@ -1169,9 +1173,9 @@ class FilterDetailView(APIView):
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
-        operation_summary="Детали применённых фильтров и подходящие товары",
+        operation_summary="Детали применённых фильтров ",
         operation_description="""
-    Этот эндпоинт показывает, какие фильтры были применены ранее, и возвращает список товаров, которые этим фильтрам соответствуют.
+    Этот эндпоинт показывает, какие фильтры были применены ранее.
     Фильтры хранятся в сессии, устанавливаются через POST /product/filter/.
 
     """,
@@ -1184,28 +1188,6 @@ class FilterDetailView(APIView):
                         "applied_filters": openapi.Schema(
                             type=openapi.TYPE_OBJECT,
                             description="Применённые фильтры из сессии"
-                        ),
-                        "matched_products": openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            description="Список товаров, соответствующих фильтрам",
-                            items=openapi.Schema(
-                                type=openapi.TYPE_OBJECT,
-                                properties={
-                                    "product_id": openapi.Schema(type=openapi.TYPE_INTEGER),
-                                    "title": openapi.Schema(type=openapi.TYPE_STRING),
-                                    "manufacturer": openapi.Schema(type=openapi.TYPE_STRING),
-                                    "model": openapi.Schema(type=openapi.TYPE_STRING),
-                                    "season": openapi.Schema(type=openapi.TYPE_STRING),
-                                    "width": openapi.Schema(type=openapi.TYPE_STRING),
-                                    "profile": openapi.Schema(type=openapi.TYPE_STRING),
-                                    "diameter": openapi.Schema(type=openapi.TYPE_STRING),
-                                    "speed_index": openapi.Schema(type=openapi.TYPE_STRING),
-                                    "load_index": openapi.Schema(type=openapi.TYPE_STRING),
-                                    "promotion": openapi.Schema(type=openapi.TYPE_NUMBER, nullable=True),
-                                    "price": openapi.Schema(type=openapi.TYPE_STRING),
-                                    "in_stock": openapi.Schema(type=openapi.TYPE_INTEGER)
-                                }
-                            )
                         ),
                         "total_matched": openapi.Schema(
                             type=openapi.TYPE_INTEGER,

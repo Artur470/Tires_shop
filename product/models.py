@@ -6,13 +6,6 @@ from cloudinary.models import CloudinaryField
 from decimal import Decimal
 from users.models import User
 
-class Condition(models.Model):
-    label = models.CharField(max_length=100, unique=True)  # "Новый"
-    value = models.CharField(max_length=100, unique=True)  # "new"
-
-    def __str__(self):
-        return self.label
-
 
 
 
@@ -81,6 +74,7 @@ class Product(models.Model):
     load_index_for_double = models.CharField(max_length=200)
     is_favorite = models.BooleanField(default=False)
     favorite_created_at = models.DateTimeField(null=True, blank=True)
+    condition = models.BooleanField(default=False)
     manufacturer = models.CharField(max_length=100)
     model = models.CharField(max_length=255)
     generation = models.CharField(max_length=100)
@@ -90,7 +84,6 @@ class Product(models.Model):
     fuel_efficiency = models.CharField(max_length=1, choices=FUEL_EFFICIENCY_CHOICES)
     wet_grip = models.CharField(max_length=1, choices=WET_GRIP_CHOICES)
     external_noise_level = models.IntegerField()
-    condition = models.ForeignKey('Condition',on_delete=models.CASCADE)
     season = models.ForeignKey('Season', on_delete=models.CASCADE)
     tire_type = models.ForeignKey('TireType', on_delete=models.CASCADE)
     body_type = models.ForeignKey('BodyType', on_delete=models.CASCADE)

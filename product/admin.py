@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Product,   Condition, TireType, Season, BodyType
+from .models import Product,  TireType, Season, BodyType
 
 
 class ProductAdmin(admin.ModelAdmin):
@@ -16,7 +16,6 @@ admin.site.register(Product)
 
 
 
-admin.site.register(Condition)
 admin.site.register(TireType)
 admin.site.register(Season)
 admin.site.register(BodyType)

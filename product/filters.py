@@ -79,34 +79,37 @@ class ProductFilter(django_filters.FilterSet):
 
 
 
-
 class BooleanFlexibleFilter(django_filters.Filter):
     def filter(self, qs, value):
         if value is None:
             return qs
+
+        field = self.field_name  # <-- используем текущее поле
+
         if isinstance(value, list):
             queries = []
             for val in value:
                 if val in (True, 'true', 'True', 1, '1'):
-                    queries.append(qs.filter(promotion__gt=0))
+                    queries.append(qs.filter(**{f"{field}": True}))
                 elif val in (False, 'false', 'False', 0, '0'):
-                    queries.append(qs.filter(promotion__lte=0))
+                    queries.append(qs.filter(**{f"{field}": False}))
             if queries:
                 result = queries[0]
                 for q in queries[1:]:
                     result = result.union(q)
                 return result
+
         if value in (True, 'true', 'True', 1, '1'):
-            return qs.filter(promotion__gt=0)
+            return qs.filter(**{f"{field}": True})
         elif value in (False, 'false', 'False', 0, '0'):
-            return qs.filter(promotion__lte=0)
+            return qs.filter(**{f"{field}": False})
         return qs
 
 class ProductFilterall(django_filters.FilterSet):
     season = django_filters.CharFilter(method="filter_season")
     manufacturer = django_filters.CharFilter(field_name='manufacturer', lookup_expr='exact')
     tire_type = django_filters.CharFilter(field_name='tire_type__value', lookup_expr='exact')
-    condition = django_filters.CharFilter(field_name='condition__value', lookup_expr='exact')
+
 
     min_price = django_filters.NumberFilter(method='filter_min_price')
     max_price = django_filters.NumberFilter(method='filter_max_price')
@@ -122,8 +125,8 @@ class ProductFilterall(django_filters.FilterSet):
 
     runflat = BooleanFlexibleFilter(field_name='runflat')
     off_road = BooleanFlexibleFilter(field_name='off_road')
-    promotion = BooleanFlexibleFilter(field_name='promotion')
-
+    condition = BooleanFlexibleFilter(field_name='condition')
+    promotion = django_filters.CharFilter(method='filter_promotion')
     sort_by_price = django_filters.CharFilter(method='filter_sort_by_price')
 
     class Meta:
@@ -133,22 +136,27 @@ class ProductFilterall(django_filters.FilterSet):
                   'width', 'profile', 'diameter', 'speed_index', 'runflat', 'off_road', 'promotion']
 
     def filter_promotion(self, queryset, name, value):
+        true_vals = ['true', '1', True, 1]
+        false_vals = ['false', '0', False, 0]
+
         if isinstance(value, list):
             queries = []
             for val in value:
-                if val:
-                    queries.append(queryset.filter(promotion__gt=0))
-                else:
-                    queries.append(queryset.filter(promotion__lte=0))
+                if val in true_vals or str(val).lower() in true_vals:
+                    queries.append(queryset.filter(promotion__isnull=False, promotion__gt=0))
+                elif val in false_vals or str(val).lower() in false_vals:
+                    queries.append(queryset.filter(promotion__isnull=True) | queryset.filter(promotion__lte=0))
             if queries:
-                queryset = queries[0]
+                result = queries[0]
                 for q in queries[1:]:
-                    queryset = queryset.union(q)
-            return queryset
-        if value is True:
-            return queryset.filter(promotion__gt=0)
-        elif value is False:
-            return queryset.filter(promotion__lte=0)
+                    result = result.union(q)
+                return result
+
+        if value in true_vals or str(value).lower() in true_vals:
+            return queryset.filter(promotion__isnull=False, promotion__gt=0)
+        elif value in false_vals or str(value).lower() in false_vals:
+            return queryset.filter(promotion__isnull=True) | queryset.filter(promotion__lte=0)
+
         return queryset
 
     def filter_season(self, queryset, name, value):
