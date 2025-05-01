@@ -1,6 +1,6 @@
 
 from rest_framework import serializers
-from .models import Product, Comment, News
+from .models import Product, Comment, News, Condition, Season, TireType, BodyType
 from drf_yasg import openapi
 from django.db.models import Sum
 from .utils import round_to_half
@@ -8,6 +8,9 @@ from product import models  # Тогда обращаться так: models.MyM
 from django.db.models import Q
 from drf_yasg.utils import swagger_auto_schema
 from django.db.models import Sum
+from django.core.exceptions import ObjectDoesNotExist
+from deep_translator import GoogleTranslator
+
 # Словарь для перевода с русского на английский
 RUS_TO_ENG = {
     'Автомобильные шины': 'Car tires',
@@ -24,6 +27,45 @@ RUS_TO_ENG = {
     'Компрессоры': 'Compressors',
 }
 
+class TireTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TireType
+        fields = ['value']
+
+    def create(self, validated_data):
+        value = validated_data['value']
+        label = GoogleTranslator(source='en', target='ru').translate(value)
+        return TireType.objects.create(value=value, label=label)
+
+class BodyTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BodyType
+        fields = ['value']
+
+    def create(self, validated_data):
+        value = validated_data['value']
+        label = GoogleTranslator(source='en', target='ru').translate(value)
+        return BodyType.objects.create(value=value, label=label)
+
+class ForeignKeyByValueField(serializers.PrimaryKeyRelatedField):
+    """
+    Кастомное поле, чтобы принимать `value` вместо `id` в ForeignKey.
+    """
+    def __init__(self, **kwargs):
+        self.model = kwargs.pop("model")
+        self.value_field = kwargs.pop("value_field", "value")
+        super().__init__(queryset=self.model.objects.all(), **kwargs)
+
+    def to_internal_value(self, data):
+        try:
+            return self.model.objects.get(**{self.value_field: data})
+        except ObjectDoesNotExist:
+            raise serializers.ValidationError(f"{self.model.__name__} with {self.value_field}='{data}' not found.")
+
+    def to_representation(self, obj):
+        return getattr(obj, self.value_field)
+
+
 class ProductCreateSerializer(serializers.ModelSerializer):
     image1 = serializers.ImageField(write_only=True, required=True)
     image2 = serializers.ImageField(write_only=True, required=False)
@@ -32,11 +74,20 @@ class ProductCreateSerializer(serializers.ModelSerializer):
     image5 = serializers.ImageField(write_only=True, required=False)
     image6 = serializers.ImageField(write_only=True, required=False)
     image7 = serializers.ImageField(write_only=True, required=False)
+    tire_type = ForeignKeyByValueField(model=TireType)
+    body_type = ForeignKeyByValueField(model=BodyType)
 
     class Meta:
         model = Product
-        fields = ['title', 'image1', 'image2', 'image3', 'image4', 'image5', 'image6', 'image7' ,'price', 'negotiable', 'promotion', 'promotion_end_date', 'model_description', 'in_stock', 'profile', 'diameter', 'speed_index', 'load_index', 'load_index_for_double', 'manufacturer', 'model', 'generation', 'modification', 'promotionCategory', 'width', 'fuel_efficiency', 'wet_grip', 'external_noise_level', 'condition', 'season', 'tire_type', 'body_type', 'runflat', 'off_road', 'warranty' ]
-
+        fields = [
+            'title', 'image1', 'image2', 'image3', 'image4', 'image5', 'image6', 'image7',
+            'price', 'negotiable', 'promotion', 'promotion_end_date', 'model_description',
+            'in_stock', 'profile', 'diameter', 'speed_index', 'load_index',
+            'load_index_for_double', 'manufacturer', 'model', 'generation', 'modification',
+            'promotionCategory', 'width', 'fuel_efficiency', 'wet_grip',
+            'external_noise_level', 'condition', 'season', 'tire_type', 'body_type',
+            'runflat', 'off_road', 'warranty'
+        ]
 
     def validate(self, attrs):
         negotiable = attrs.get("negotiable", False)
@@ -51,15 +102,14 @@ class ProductCreateSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        # Все изображения загружаем на Cloudinary вручную
         from cloudinary.uploader import upload
-
         for field in ['image1', 'image2', 'image3', 'image4', 'image5', 'image6', 'image7']:
             if field in validated_data:
                 upload_result = upload(validated_data[field])
                 validated_data[field] = upload_result['public_id']
 
         return Product.objects.create(**validated_data)
+
 
 class ProductSerializerHomepage(serializers.ModelSerializer):
     product_Id = serializers.IntegerField(source='id', help_text="id товара")
@@ -270,7 +320,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         model = Product
         fields = ["id", "title", 'image',  "manufacturer", "in_stock", "model", "price", "season", "is_favorite", "width",
                   "profile", "diameter", "speed_index", "load_index", "load_index_for_double", "comments", "negotiable",
-                  "average_rating", "model_description", "season_value", "warranty", 'comments_count',]
+                  "average_rating", "model_description", "season_value", "warranty", 'comments_count', 'body_type', 'tire_type']
 
     def get_price(self, obj):
         if obj.negotiable:

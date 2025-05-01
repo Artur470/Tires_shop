@@ -44,7 +44,7 @@ from rest_framework.views import APIView
 from django.http import QueryDict
 import logging
 from rest_framework.views import APIView
-from .models import Product,  Comment, BodyType, News
+from .models import Product,  Comment, BodyType, News, TireType
 from .serializers import (ProductSerializerHomepage,
                           FavoriteProductListSerializer,
                           CommentSerializer,
@@ -52,7 +52,14 @@ from .serializers import (ProductSerializerHomepage,
                           ProductDetailSerializer,
                           NewsDetailSerializer,
                           NewsSerializer,
-                          ProductCreateSerializer)
+                          ProductCreateSerializer,
+TireTypeSerializer,
+BodyTypeSerializer
+
+
+                          )
+
+
 from rest_framework.response import Response
 from rest_framework import status
 from django_filters.rest_framework import DjangoFilterBackend
@@ -72,6 +79,7 @@ from rest_framework.generics import ListAPIView
 from .filters import ProductFilterall
 from django_filters.rest_framework import DjangoFilterBackend
 logger = logging.getLogger(__name__)
+from rest_framework import viewsets
 
 import logging
 logger = logging.getLogger(__name__)
@@ -491,7 +499,7 @@ class FavoriteProduct(APIView):
                             {
                                 "product_Id": 2,
                                 "image": "image/upload/v1742982353/hpowq9tsbjla99wgor1j.jpg",
-                                "price": "2000.00",
+                                "price": "договор",
                                 "season": 2,
                                 "title": "title",
                                 "in_stock": 40,
@@ -1292,7 +1300,7 @@ class ProductDetailView(generics.RetrieveAPIView):
                 "price": p["price"],
                 "rating": p.get("average_rating", 0.0),
                 "in_stock": p.get("in_stock"),
-                "favorite": p["is_favorite"],
+                "is_favorite": p["is_favorite"],
                 "season": p["season_value"],
                 "image1": p.get("image", None),
                 "comments_count": p["comments_count"],
@@ -1312,6 +1320,8 @@ class ProductDetailView(generics.RetrieveAPIView):
                 "speed_index": product.speed_index,
                 "load_index": product.load_index,
                 "load_index_for_double": product.load_index_for_double,
+                'body_type': product.body_type.label,
+                'tire_type': product.tire_type.label
             },
             "title": data.get("title", product.title),
             "is_favorite": product.is_favorite,
@@ -1433,15 +1443,9 @@ class ProductCommentListView(generics.ListAPIView):
         return Comment.objects.filter(product_id=product_id).order_by('-created_at')
 
 
-
-
-
 class NewsCustomLimitOffsetPagination(LimitOffsetPagination):
     default_limit = 6
     max_limit = None
-
-
-
 
 
 
@@ -1508,6 +1512,7 @@ class NewsDetailView(APIView):
             404: openapi.Response(description="Новость не найдена")
         }
     )
+
     def get(self, request, pk):
         news = get_object_or_404(News, pk=pk)
         serializer = NewsDetailSerializer(news)
@@ -1577,8 +1582,15 @@ class ProductCreateView(generics.CreateAPIView):
     @swagger_auto_schema(
         operation_summary="Создание нового товара",
         operation_description="""
-    Этот эндпоинт используется для создания нового товара в админке. 
-    Передайте все необходимые поля, включая характеристики и изображения (image1, ..., image7).
+    Создаёт новый товар для отображения в админке.
+
+    - Обязательные поля: `title`, `image1`, `price` или `negotiable`, `season`, `tire_type`, `body_type`, `condition`, и базовые характеристики.
+    - Если `negotiable = true`, то `price` и `promotion` не должен быть указан.
+    - Если `negotiable = false`, то `price` обязателен.
+    - Поля `image2` — `image7` являются необязательными.
+    - ForeignKey поля ( `tire_type`, `body_type`) принимают `value` вместо `id`.
+    - ForeignKey поля ( `season`, `condition`) принимают `id` вместо `value`.
+    
     """,
         request_body=ProductCreateSerializer,
         responses={
@@ -1597,6 +1609,13 @@ class ProductCreateView(generics.CreateAPIView):
                 description="Ошибка валидации",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
+                    properties={
+                        "non_field_errors": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(type=openapi.TYPE_STRING),
+                            example=["Цена обязательна, если товар не договорной."]
+                        )
+                    },
                     additional_properties=openapi.Schema(type=openapi.TYPE_STRING)
                 )
             )
@@ -1614,6 +1633,73 @@ class ProductCreateView(generics.CreateAPIView):
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+
+class TireTypeAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_summary="Создание типа шины",
+        operation_description="Принимает английское значение `value` и возвращает русский `label` (автоперевод).",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["value"],
+            properties={
+                "value": openapi.Schema(type=openapi.TYPE_STRING,
+                                        description="Английское значение, например: 'passenger'"),
+            }
+        ),
+        responses={
+            201: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    "value": openapi.Schema(type=openapi.TYPE_STRING, example="passenger"),
+                    "label": openapi.Schema(type=openapi.TYPE_STRING, example="пассажирский"),
+                }
+            ),
+            400: "Ошибка валидации"
+        },
+        tags=["TireType"]
+    )
+    def post(self, request):
+        serializer = TireTypeSerializer(data=request.data)
+        if serializer.is_valid():
+            tire_type = serializer.save()
+            return Response({'value': tire_type.value, 'label': tire_type.label}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class BodyTypeAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_summary="Создание типа кузова",
+        operation_description="Принимает английское значение `value` и возвращает русский `label` (автоперевод).",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["value"],
+            properties={
+                "value": openapi.Schema(type=openapi.TYPE_STRING, description="Английское значение, например: 'sedan'"),
+            }
+        ),
+        responses={
+            201: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    "value": openapi.Schema(type=openapi.TYPE_STRING, example="sedan"),
+                    "label": openapi.Schema(type=openapi.TYPE_STRING, example="седан"),
+                }
+            ),
+            400: "Ошибка валидации"
+        },
+        tags=["BodyType"]
+    )
+    def post(self, request):
+        serializer = BodyTypeSerializer(data=request.data)
+        if serializer.is_valid():
+            body_type = serializer.save()
+            return Response({'value': body_type.value, 'label': body_type.label}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ProductUpdateDeleteView(APIView):
