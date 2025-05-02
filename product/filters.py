@@ -110,7 +110,6 @@ class ProductFilterall(django_filters.FilterSet):
     manufacturer = django_filters.CharFilter(field_name='manufacturer', lookup_expr='exact')
     tire_type = django_filters.CharFilter(field_name='tire_type__value', lookup_expr='exact')
 
-
     min_price = django_filters.NumberFilter(method='filter_min_price')
     max_price = django_filters.NumberFilter(method='filter_max_price')
     min_load_index = django_filters.NumberFilter(field_name='load_index', lookup_expr='gte')

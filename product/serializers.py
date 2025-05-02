@@ -111,7 +111,7 @@ def fuzzy_translate(eng_value: str, dictionary: dict) -> str:
 class TireTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = TireType
-        fields = ['value']
+        fields = ['id','value','label']
 
     def create(self, validated_data):
         value = validated_data['value']
@@ -123,7 +123,7 @@ class TireTypeSerializer(serializers.ModelSerializer):
 class BodyTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = BodyType
-        fields = ['value']
+        fields = ['id', 'label', 'value']
 
     def create(self, validated_data):
         value = validated_data['value']

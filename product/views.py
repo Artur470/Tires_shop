@@ -180,10 +180,14 @@ class ProductAutocompleteView(APIView):
             )
         }
     )
+
     def post(self, request, *args, **kwargs):
         query = request.data.get('q', '').strip()
 
         if query:
+            request.session['product_filters'] = {'search': query}
+            request.session.modified = True
+
             products = Product.objects.filter(
                 Q(title__icontains=query) |
                 Q(manufacturer__icontains=query) |
@@ -769,6 +773,9 @@ class ProductListView(generics.ListAPIView):
     ordering = ['id']
 
     def get_queryset(self):
+
+        Product.objects.filter(in_stock=0).delete()
+
         queryset = Product.objects.all()
         product_filters = self.request.session.get('product_filters')
         sort_by_price = self.request.session.get('sort_by_price')
@@ -776,6 +783,15 @@ class ProductListView(generics.ListAPIView):
         if product_filters:
             query_dict = QueryDict('', mutable=True)
             query_dict.update(product_filters)
+
+            search_term = product_filters.get('search')
+            if search_term:
+                queryset = queryset.filter(
+                    Q(title__icontains=search_term) |
+                    Q(manufacturer__icontains=search_term) |
+                    Q(model__icontains=search_term)
+                )
+
             filterset = ProductFilterall(query_dict, queryset=queryset)
             queryset = filterset.qs
 
@@ -1062,7 +1078,7 @@ class ProductFilterView(APIView):
                 "season": openapi.Schema(type=openapi.TYPE_STRING, example="summer"),
                 "manufacturer": openapi.Schema(type=openapi.TYPE_STRING, example="Michelin"),
                 "tire_type": openapi.Schema(type=openapi.TYPE_STRING, example="suv"),
-                "condition": openapi.Schema(type=openapi.TYPE_STRING, example="new"),
+                "condition": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=True),
                 "min_price": openapi.Schema(type=openapi.TYPE_NUMBER, example=2000),
                 "max_price": openapi.Schema(type=openapi.TYPE_NUMBER, example=5000),
                 "min_load_index": openapi.Schema(type=openapi.TYPE_INTEGER, example=80),
@@ -1650,6 +1666,22 @@ class TireTypeAPIView(APIView):
             return Response({'value': tire_type.value, 'label': tire_type.label}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @swagger_auto_schema(
+        operation_summary="Получение всех типов шин",
+        operation_description="Возвращает список всех типов шин с полями id, value и label.",
+        responses={
+            200: openapi.Response(
+                description="Список типов шин",
+                schema=TireTypeSerializer(many=True) #
+            )
+        },
+        tags=["TireType"]
+    )
+    def get(self, request):
+        queryset = TireType.objects.all()
+        serializer = TireTypeSerializer(queryset, many=True)
+        return Response(serializer.data)
+
 
 class BodyTypeAPIView(APIView):
     permission_classes = [AllowAny]
@@ -1682,6 +1714,32 @@ class BodyTypeAPIView(APIView):
             body_type = serializer.save()
             return Response({'value': body_type.value, 'label': body_type.label}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(
+        operation_summary="Получение всех типов кузова",
+        operation_description="Возвращает список всех доступных типов кузова с полями id, value и label.",
+        responses={
+            200: openapi.Response(
+                description="Список типов кузова",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            'id': openapi.Schema(type=openapi.TYPE_INTEGER, example=1),
+                            'value': openapi.Schema(type=openapi.TYPE_STRING, example='suv'),
+                            'label': openapi.Schema(type=openapi.TYPE_STRING, example='внедорожник')
+                        }
+                    )
+                )
+            )
+        },
+        tags=["BodyType"]
+    )
+    def get(self, request):
+        queryset = BodyType.objects.all()
+        serializers = BodyTypeSerializer(queryset, many=True)
+        return Response(serializers.data)
 
 
 class ProductUpdateDeleteView(APIView):
