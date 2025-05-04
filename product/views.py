@@ -54,7 +54,8 @@ from .serializers import (ProductSerializerHomepage,
                           NewsSerializer,
                           ProductCreateSerializer,
 TireTypeSerializer,
-BodyTypeSerializer
+BodyTypeSerializer,
+ProductAutoCompleteSerializer
 
 
                           )
@@ -180,38 +181,22 @@ class ProductAutocompleteView(APIView):
             )
         }
     )
-
     def post(self, request, *args, **kwargs):
         query = request.data.get('q', '').strip()
-
         if query:
             request.session['product_filters'] = {'search': query}
             request.session.modified = True
-
             products = Product.objects.filter(
                 Q(title__icontains=query) |
                 Q(manufacturer__icontains=query) |
                 Q(model__icontains=query)
-            ).only('id', 'title', 'manufacturer', 'model')
+            ).select_related('season').prefetch_related('comment_set')[:10]
 
-            products = sorted(
-                products,
-                key=lambda p: (
-                    (query.lower() in p.title.lower(), 2),
-                    (query.lower() in p.manufacturer.lower(), 1),
-                    (query.lower() in p.model.lower(), 0)
-                ),
-                reverse=True
-            )
+            serializer = ProductAutoCompleteSerializer(products, many=True)
+            return Response({"products": serializer.data})
 
-            return Response([{
-                "id": p.id,
-                "title": p.title,
-                "manufacturer": p.manufacturer,
-                "model": p.model
-            } for p in products[:10]])
+        return Response({"products": []})
 
-        return Response([])
 
 class HomepageView(ListAPIView):
     """
@@ -1517,38 +1502,26 @@ class NewsDetailView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-
-
-class NewsCreateView(APIView):
-    parser_classes = (MultiPartParser, JSONParser)
+class NewsCreateView(generics.CreateAPIView):
+    queryset = News.objects.all()
+    serializer_class = NewsSerializer
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
-        operation_description="Создание новости",
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            required=['news_title', 'news_time', 'news_description'],
-            properties={
-                'news_title': openapi.Schema(type=openapi.TYPE_STRING, description="Заголовок новости", maxLength=255),
-                'news_time': openapi.Schema(type=openapi.TYPE_STRING, description="Время новости",
-                                            format=openapi.FORMAT_DATETIME),
-                'news_description': openapi.Schema(type=openapi.TYPE_STRING, description="Описание новости",
-                                                   minLength=1),
-                'news_image': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_BINARY,
-                                             description="Изображение новости"),  # для загрузки файла
-            },
-        ),
+        operation_summary="Создание новости",
+        operation_description="Создание новой новости с изображением (загрузка через файл).",
+        request_body=NewsSerializer,
         responses={
             201: openapi.Response(
                 description="Новость успешно создана",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        'id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID новости", readOnly=True),
-                        'news_image': openapi.Schema(type=openapi.TYPE_STRING, description="Изображение новости"),
-                        'news_title': openapi.Schema(type=openapi.TYPE_STRING, description="Заголовок новости"),
-                        'news_time': openapi.Schema(type=openapi.TYPE_STRING, description="Время новости"),
-                        'news_description': openapi.Schema(type=openapi.TYPE_STRING, description="Описание новости"),
+                        "id": openapi.Schema(type=openapi.TYPE_INTEGER),
+                        "news_title": openapi.Schema(type=openapi.TYPE_STRING),
+                        "news_time": openapi.Schema(type=openapi.TYPE_STRING, format="date-time"),
+                        "news_description": openapi.Schema(type=openapi.TYPE_STRING),
+                        "news_image": openapi.Schema(type=openapi.TYPE_STRING),
                     }
                 )
             ),
@@ -1557,17 +1530,17 @@ class NewsCreateView(APIView):
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description="Сообщение об ошибке")
+                        "detail": openapi.Schema(type=openapi.TYPE_STRING)
                     }
                 )
             )
-        }
+        },
+        tags=["News"]
     )
-
-    def post(self, request):
-        serializer = NewsSerializer(data=request.data)
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            news = serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

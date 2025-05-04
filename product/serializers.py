@@ -385,6 +385,54 @@ class ProductSerializerll(serializers.ModelSerializer):
 
         return round(average_rating, 1)
 
+class ProductAutoCompleteSerializer(serializers.ModelSerializer):
+    product_Id = serializers.IntegerField(source='id')
+    average_rating = serializers.SerializerMethodField()
+    comments_count = serializers.SerializerMethodField()
+    image = serializers.SerializerMethodField()
+    season = serializers.SerializerMethodField()
+    price = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = [
+            'product_Id', 'image', 'average_rating', 'comments_count',
+            'negotiable', 'title', 'in_stock', 'price', 'promotion', 'season'
+        ]
+
+    def get_image(self, obj):
+        return [
+            obj.image1.url if obj.image1 else None,
+            obj.image2.url if obj.image2 else None,
+            obj.image3.url if obj.image3 else None,
+            obj.image4.url if obj.image4 else None,
+            obj.image5.url if obj.image5 else None,
+            obj.image6.url if obj.image6 else None,
+            obj.image7.url if obj.image7 else None,
+        ]
+
+    def get_price(self, obj):
+        if obj.negotiable:
+            return "Договорная"
+        return float(obj.price) if obj.price is not None else None
+
+    def get_season(self, obj):
+        return obj.season.value if obj.season else None
+
+    def get_average_rating(self, obj):
+        comments = obj.comment_set.all()
+        if not comments:
+            return 0.0
+        total_rating = sum(comment.rating for comment in comments)
+        average_rating = total_rating / len(comments)
+
+
+        average_rating = min(average_rating, 5.0)
+
+        return round(average_rating, 1)
+
+    def get_comments_count(self, obj):
+        return getattr(obj.comment_set, "count", lambda: 0)()
 
 class ProductDetailSerializer(serializers.ModelSerializer):
 
@@ -435,19 +483,28 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
         return round(average_rating, 1)
 
-
 class NewsSerializer(serializers.ModelSerializer):
-    news_image = serializers.SerializerMethodField(help_text="Словарь всех изображений новостей")
+
+    news_image1 = serializers.ImageField(write_only=True, required=False)
+    news_image2 = serializers.ImageField(write_only=True, required=False)
+    news_image3 = serializers.ImageField(write_only=True, required=False)
+    news_image4 = serializers.ImageField(write_only=True, required=False)
+    news_image5 = serializers.ImageField(write_only=True, required=False)
+    news_image6 = serializers.ImageField(write_only=True, required=False)
+    news_image7 = serializers.ImageField(write_only=True, required=False)
+
+    news_image = serializers.SerializerMethodField(help_text="Список URL изображений")
 
     class Meta:
         model = News
-        fields = ["id", "news_image", "news_title", "news_time", "news_description"]
+        fields = [
+            "id", "news_title", "news_time", "news_description", "news_image",
+            "news_image1", "news_image2", "news_image3", "news_image4",
+            "news_image5", "news_image6", "news_image7",
+        ]
         extra_kwargs = {
-            "news_description": {"write_only": True}
+            "news_description": {"write_only": False}
         }
-
-
-
 
     def get_news_image(self, obj):
         return [
@@ -460,6 +517,8 @@ class NewsSerializer(serializers.ModelSerializer):
             obj.news_image7.url if obj.news_image7 else None,
         ]
 
+    def create(self, validated_data):
+        return News.objects.create(**validated_data)
 
 class NewsDetailSerializer(serializers.ModelSerializer):
     related_news = serializers.SerializerMethodField()
