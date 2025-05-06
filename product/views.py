@@ -104,17 +104,6 @@ class ProductAutocompleteView(APIView):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
     """
     @swagger_auto_schema(
         tags=['Product'],
@@ -777,11 +766,14 @@ class ProductListView(generics.ListAPIView):
     ordering_fields = ['price']
     ordering = ['id']
 
-    def get_queryset(self):
 
+    def get_queryset(self):
+        # Удаляем товары, которых нет в наличии
         Product.objects.filter(in_stock=0).delete()
 
         queryset = Product.objects.all()
+
+        # Получаем фильтры из сессии
         product_filters = self.request.session.get('product_filters')
         sort_by_price = self.request.session.get('sort_by_price')
 
@@ -789,17 +781,12 @@ class ProductListView(generics.ListAPIView):
             query_dict = QueryDict('', mutable=True)
             query_dict.update(product_filters)
 
-            search_term = product_filters.get('search')
-            if search_term:
-                queryset = queryset.filter(
-                    Q(title__icontains=search_term) |
-                    Q(manufacturer__icontains=search_term) |
-                    Q(model__icontains=search_term)
-                )
-
+            # Применяем ручную фильтрацию, если фильтры заданы в сессии
             filterset = ProductFilterall(query_dict, queryset=queryset)
-            queryset = filterset.qs
+            if filterset.is_valid():
+                queryset = filterset.qs
 
+        # Сортировка по акции, если задана вручную
         if sort_by_price == "cheap":
             queryset = queryset.order_by(
                 Case(
@@ -814,6 +801,7 @@ class ProductListView(generics.ListAPIView):
                     default=F('price')
                 ).desc()
             )
+
         return queryset
 
     @swagger_auto_schema(
@@ -947,24 +935,25 @@ class ProductListView(generics.ListAPIView):
         }
     )
 
+
     def get(self, request, *args, **kwargs):
         """
-        Обрабатывает GET-запрос и применяет фильтрацию.
+        Обрабатывает GET-запрос, включая пагинацию и фильтрацию.
         """
-        products = self.get_queryset()  # Получаем товары с фильтрацией
+        products = self.filter_queryset(self.get_queryset())  # Применяем фильтры DjangoFilterBackend + Search
 
-        # ✅ Применяем пагинацию
+        # Пагинация
         page = self.paginate_queryset(products)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
+        # Если пагинации нет
         serializer = self.get_serializer(products, many=True)
         return Response({
             'total_count': products.count(),
             'results': serializer.data
         })
-
     @swagger_auto_schema(
         operation_summary="Добавление или удаление товара из избранного",
         operation_description="Этот эндпоинт позволяет добавить товар в избранное, если он еще не в нем, или удалить его, если он уже в избранном. Для этого нужно передать `product_id` в теле запроса.",
