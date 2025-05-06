@@ -308,7 +308,7 @@ class OrderView(APIView):
 
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
-class ApplicationsView(APIView):
+class   ApplicationsView(APIView):
 
     @swagger_auto_schema(
         operation_description="Получение всех успешно оформленных заказов (applications=True). Используется в админке для отслеживания заказов.",

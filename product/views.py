@@ -96,6 +96,25 @@ class ProductAutocompleteSerializer(serializers.Serializer):
 class ProductAutocompleteView(APIView):
     """
     Эндпоинт для живого поиска (автодополнение).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     """
     @swagger_auto_schema(
         tags=['Product'],
