@@ -336,12 +336,11 @@ class ProductSerializerll(serializers.ModelSerializer):
     in_stock = serializers.IntegerField(help_text="количество шины в складе")
     title = serializers.CharField(max_length=100, help_text="названия шины")
 
-
     class Meta:
         model = Product
         fields = ['product_Id', "image", 'average_rating', 'comments_count', 'negotiable', 'title', 'in_stock', 'price', 'promotion', 'is_favorite', "season"]
 
-    # Swagger-описание для promotion_category
+
     promotion_category_schema = openapi.Schema(
         type=openapi.TYPE_ARRAY,  # Указываем, что это массив
         items=openapi.Items(type=openapi.TYPE_STRING),
@@ -435,7 +434,6 @@ class ProductAutoCompleteSerializer(serializers.ModelSerializer):
         return getattr(obj.comment_set, "count", lambda: 0)()
 
 class ProductDetailSerializer(serializers.ModelSerializer):
-
     image = serializers.SerializerMethodField(help_text="Словарь всех изображений шин")
     comments = CommentSerializer(many=True, read_only=True)
     comments_count = serializers.IntegerField(source="comment_set.count", read_only=True,
@@ -460,7 +458,6 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         return float(obj.price) if obj.price is not None else None
 
     def get_image(self, obj):
-
         return [
             obj.image1.url if obj.image1 else None,
             obj.image2.url if obj.image2 else None,
@@ -470,6 +467,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             obj.image6.url if obj.image6 else None,
             obj.image7.url if obj.image7 else None,
         ]
+
     def get_average_rating(self, obj):
         """Вычисляет средний рейтинг продукта на лету."""
         comments = obj.comment_set.all()
@@ -483,16 +481,15 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
         return round(average_rating, 1)
 
-class NewsSerializer(serializers.ModelSerializer):
 
-    news_image1 = serializers.ImageField(write_only=True, required=False)
+class NewsSerializer(serializers.ModelSerializer):
+    news_image1 = serializers.ImageField(write_only=True)
     news_image2 = serializers.ImageField(write_only=True, required=False)
     news_image3 = serializers.ImageField(write_only=True, required=False)
     news_image4 = serializers.ImageField(write_only=True, required=False)
     news_image5 = serializers.ImageField(write_only=True, required=False)
     news_image6 = serializers.ImageField(write_only=True, required=False)
     news_image7 = serializers.ImageField(write_only=True, required=False)
-
     news_image = serializers.SerializerMethodField(help_text="Список URL изображений")
 
     class Meta:
@@ -502,9 +499,12 @@ class NewsSerializer(serializers.ModelSerializer):
             "news_image1", "news_image2", "news_image3", "news_image4",
             "news_image5", "news_image6", "news_image7",
         ]
-        extra_kwargs = {
-            "news_description": {"write_only": False}
-        }
+
+    def __init__(self, *args, **kwargs):
+        exclude_fields = kwargs.pop("exclude_fields", [])
+        super().__init__(*args, **kwargs)
+        for field in exclude_fields:
+            self.fields.pop(field, None)
 
     def get_news_image(self, obj):
         return [
@@ -519,7 +519,6 @@ class NewsSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         return News.objects.create(**validated_data)
-
 class NewsDetailSerializer(serializers.ModelSerializer):
     related_news = serializers.SerializerMethodField()
 
@@ -548,4 +547,7 @@ class NewsDetailSerializer(serializers.ModelSerializer):
             obj.news_image6.url if obj.news_image6 else None,
             obj.news_image7.url if obj.news_image7 else None,
         ]
+
+
+
 

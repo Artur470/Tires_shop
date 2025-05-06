@@ -60,7 +60,7 @@ ProductAutoCompleteSerializer
 
                           )
 
-
+from drf_yasg.openapi import TYPE_STRING, TYPE_FILE, TYPE_OBJECT, Schema
 from rest_framework.response import Response
 from rest_framework import status
 from django_filters.rest_framework import DjangoFilterBackend
@@ -181,6 +181,7 @@ class ProductAutocompleteView(APIView):
             )
         }
     )
+
     def post(self, request, *args, **kwargs):
         query = request.data.get('q', '').strip()
         if query:
@@ -1056,14 +1057,13 @@ class ProductFilterView(APIView):
 
     @swagger_auto_schema(
         operation_summary="Применить фильтры для поиска товаров",
-        operation_description="Применяет выбранные фильтры к товарам, сохраняет отфильтрованные ID товаров и параметры фильтрации в сессии для последующего использования.",
+        operation_description="Применяет выбранные фильтры к товарам, включая булевые значения внутри объекта 'booleans'. Сохраняет отфильтрованные ID товаров и параметры фильтрации в сессии для последующего использования.",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
                 "season": openapi.Schema(type=openapi.TYPE_STRING, example="summer"),
                 "manufacturer": openapi.Schema(type=openapi.TYPE_STRING, example="Michelin"),
                 "tire_type": openapi.Schema(type=openapi.TYPE_STRING, example="suv"),
-                "condition": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=True),
                 "min_price": openapi.Schema(type=openapi.TYPE_NUMBER, example=2000),
                 "max_price": openapi.Schema(type=openapi.TYPE_NUMBER, example=5000),
                 "min_load_index": openapi.Schema(type=openapi.TYPE_INTEGER, example=80),
@@ -1074,9 +1074,15 @@ class ProductFilterView(APIView):
                 "profile": openapi.Schema(type=openapi.TYPE_STRING, example="55"),
                 "diameter": openapi.Schema(type=openapi.TYPE_STRING, example="16"),
                 "speed_index": openapi.Schema(type=openapi.TYPE_STRING, example="H"),
-                "runflat": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=True),
-                "off_road": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=True),
-                "promotion": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=True)
+                "promotion": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=True),
+                "booleans": openapi.Schema(  # ⬅️ добавили отдельный объект
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "runflat": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=True),
+                        "off_road": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=False),
+                        "condition": openapi.Schema(type=openapi.TYPE_BOOLEAN, example=True),
+                    }
+                )
             }
         ),
         responses={
@@ -1096,8 +1102,16 @@ class ProductFilterView(APIView):
             )
         }
     )
+
     def post(self, request, *args, **kwargs):
-        filters = request.data
+        filters = request.data.copy()
+
+
+        booleans = filters.pop("booleans", {})
+        if isinstance(booleans, dict):
+            filters.update(booleans)
+
+        # Применяем фильтры
         filtered_products = ProductFilterall(filters, queryset=Product.objects.all()).qs
         product_ids = list(filtered_products.values_list('id', flat=True))
 
@@ -1170,6 +1184,7 @@ class ProductFilterView(APIView):
                 )
             ).values_list('is_promotion_active', flat=True).distinct()
         }
+
 class FilterDetailView(APIView):
     permission_classes = [AllowAny]
 
@@ -1430,12 +1445,11 @@ class NewsCustomLimitOffsetPagination(LimitOffsetPagination):
     default_limit = 6
     max_limit = None
 
-
-
 class NewsListView(APIView):
     pagination_class = NewsCustomLimitOffsetPagination
 
     @swagger_auto_schema(
+        operation_summary="Получить список новостей",
         operation_description="Получить список новостей (с пагинацией)",
         responses={
             200: openapi.Response(
@@ -1443,21 +1457,35 @@ class NewsListView(APIView):
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        'count': openapi.Schema(type=openapi.TYPE_INTEGER, description='Общее количество новостей'),
-                        'next': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_URI, nullable=True,
-                                               description='Ссылка на следующую страницу'),
-                        'previous': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_URI, nullable=True,
-                                                   description='Ссылка на предыдущую страницу'),
+                        'count': openapi.Schema(
+                            type=openapi.TYPE_INTEGER,
+                            description='Общее количество новостей'
+                        ),
+                        'next': openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            format=openapi.FORMAT_URI,
+                            nullable=True,
+                            description='Ссылка на следующую страницу'
+                        ),
+                        'previous': openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            format=openapi.FORMAT_URI,
+                            nullable=True,
+                            description='Ссылка на предыдущую страницу'
+                        ),
                         'results': openapi.Schema(
                             type=openapi.TYPE_ARRAY,
                             items=openapi.Schema(
                                 type=openapi.TYPE_OBJECT,
                                 properties={
                                     'id': openapi.Schema(type=openapi.TYPE_INTEGER),
-                                    'news_image': openapi.Schema(type=openapi.TYPE_STRING),
                                     'news_title': openapi.Schema(type=openapi.TYPE_STRING),
                                     'news_time': openapi.Schema(type=openapi.TYPE_STRING, format='date-time'),
-                                    'news_description': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'news_image': openapi.Schema(
+                                        type=openapi.TYPE_ARRAY,
+                                        items=openapi.Schema(type=openapi.TYPE_STRING, format='uri'),
+                                        description='Список URL изображений'
+                                    ),
                                 }
                             )
                         )
@@ -1471,12 +1499,13 @@ class NewsListView(APIView):
         news = News.objects.all().order_by('-news_time')
         paginator = self.pagination_class()
         paginated_news = paginator.paginate_queryset(news, request, view=self)
-        serializer = NewsSerializer(paginated_news, many=True)
+        serializer = NewsSerializer(paginated_news, many=True, exclude_fields=["news_description"])
         return paginator.get_paginated_response(serializer.data)
 
-
 class NewsDetailView(APIView):
+
     @swagger_auto_schema(
+        operation_summary="Получить новость по ID",
         operation_description="Получить подробную информацию о новости по ID",
         responses={
             200: openapi.Response(
@@ -1485,17 +1514,20 @@ class NewsDetailView(APIView):
                     type=openapi.TYPE_OBJECT,
                     properties={
                         'id': openapi.Schema(type=openapi.TYPE_INTEGER),
-                        'news_image': openapi.Schema(type=openapi.TYPE_STRING),
                         'news_title': openapi.Schema(type=openapi.TYPE_STRING),
-                        'news_time': openapi.Schema(type=openapi.TYPE_STRING),
+                        'news_time': openapi.Schema(type=openapi.TYPE_STRING, format='date-time'),
                         'news_description': openapi.Schema(type=openapi.TYPE_STRING),
+                        'news_image': openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(type=openapi.TYPE_STRING, format='uri'),
+                            description="Список URL изображений"
+                        ),
                     }
                 )
             ),
             404: openapi.Response(description="Новость не найдена")
         }
     )
-
     def get(self, request, pk):
         news = get_object_or_404(News, pk=pk)
         serializer = NewsDetailSerializer(news)
@@ -1509,34 +1541,44 @@ class NewsCreateView(generics.CreateAPIView):
 
     @swagger_auto_schema(
         operation_summary="Создание новости",
-        operation_description="Создание новой новости с изображением (загрузка через файл).",
-        request_body=NewsSerializer,
+        operation_description="Создание новой новости с изображениями (до 7 файлов).",
+        request_body=openapi.Schema(
+            type=TYPE_OBJECT,
+            required=["news_title", "news_description", "news_image1"],
+            properties={
+                "news_title": openapi.Schema(type=TYPE_STRING, description="Заголовок новости"),
+                "news_description": openapi.Schema(type=TYPE_STRING, description="Описание новости"),
+                "news_image1": openapi.Schema(type=TYPE_FILE, description="Обязательное изображение"),
+                "news_image2": openapi.Schema(type=TYPE_FILE, description="Доп. изображение", nullable=True),
+                "news_image3": openapi.Schema(type=TYPE_FILE, description="Доп. изображение", nullable=True),
+                "news_image4": openapi.Schema(type=TYPE_FILE, description="Доп. изображение", nullable=True),
+                "news_image5": openapi.Schema(type=TYPE_FILE, description="Доп. изображение", nullable=True),
+                "news_image6": openapi.Schema(type=TYPE_FILE, description="Доп. изображение", nullable=True),
+                "news_image7": openapi.Schema(type=TYPE_FILE, description="Доп. изображение", nullable=True),
+            }
+        ),
         responses={
             201: openapi.Response(
                 description="Новость успешно создана",
                 schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
+                    type=TYPE_OBJECT,
                     properties={
                         "id": openapi.Schema(type=openapi.TYPE_INTEGER),
-                        "news_title": openapi.Schema(type=openapi.TYPE_STRING),
-                        "news_time": openapi.Schema(type=openapi.TYPE_STRING, format="date-time"),
-                        "news_description": openapi.Schema(type=openapi.TYPE_STRING),
-                        "news_image": openapi.Schema(type=openapi.TYPE_STRING),
-                    }
-                )
-            ),
-            400: openapi.Response(
-                description="Ошибки при создании новости",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "detail": openapi.Schema(type=openapi.TYPE_STRING)
+                        "news_title": openapi.Schema(type=TYPE_STRING),
+                        "news_time": openapi.Schema(type=TYPE_STRING, format="date-time"),
+                        "news_description": openapi.Schema(type=TYPE_STRING),
+                        "news_image": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Items(type=TYPE_STRING),
+                            description="Список URL изображений"
+                        ),
                     }
                 )
             )
         },
         tags=["News"]
     )
+
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():

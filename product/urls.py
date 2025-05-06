@@ -18,6 +18,7 @@ from .views import (
 
 
 urlpatterns = [
+
     path('tire_type/', TireTypeAPIView.as_view(), name='create-tire_type'),
     path('body_type/', BodyTypeAPIView.as_view(), name='create-body_type'),
     path('all/', ProductListView.as_view()),
