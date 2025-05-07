@@ -766,7 +766,6 @@ class ProductListView(generics.ListAPIView):
     ordering_fields = ['price']
     ordering = ['id']
 
-
     def get_queryset(self):
         # Удаляем товары, которых нет в наличии
         Product.objects.filter(in_stock=0).delete()
@@ -781,26 +780,10 @@ class ProductListView(generics.ListAPIView):
             query_dict = QueryDict('', mutable=True)
             query_dict.update(product_filters)
 
-            # Применяем ручную фильтрацию, если фильтры заданы в сессии
+            # Применяем фильтры
             filterset = ProductFilterall(query_dict, queryset=queryset)
             if filterset.is_valid():
                 queryset = filterset.qs
-
-        # Сортировка по акции, если задана вручную
-        if sort_by_price == "cheap":
-            queryset = queryset.order_by(
-                Case(
-                    When(promotion__isnull=False, promotion__gt=0, then=F('promotion')),
-                    default=F('price')
-                ).asc()
-            )
-        elif sort_by_price == "expensive":
-            queryset = queryset.order_by(
-                Case(
-                    When(promotion__isnull=False, promotion__gt=0, then=F('promotion')),
-                    default=F('price')
-                ).desc()
-            )
 
         return queryset
 
@@ -831,6 +814,96 @@ class ProductListView(generics.ListAPIView):
                 in_=openapi.IN_QUERY,
                 description="Количество элементов на странице (например, 12, 24, 48)",
                 type=openapi.TYPE_INTEGER
+            ),
+            openapi.Parameter(
+                name="season",
+                in_=openapi.IN_QUERY,
+                description="Сезонность товара (winter, summer, all_season)",
+                type=openapi.TYPE_STRING
+            ),
+            openapi.Parameter(
+                name="manufacturer",
+                in_=openapi.IN_QUERY,
+                description="Производитель товара",
+                type=openapi.TYPE_STRING
+            ),
+            openapi.Parameter(
+                name="tire_type",
+                in_=openapi.IN_QUERY,
+                description="Тип шины",
+                type=openapi.TYPE_STRING
+            ),
+            openapi.Parameter(
+                name="min_price",
+                in_=openapi.IN_QUERY,
+                description="Минимальная цена товара",
+                type=openapi.TYPE_NUMBER
+            ),
+            openapi.Parameter(
+                name="max_price",
+                in_=openapi.IN_QUERY,
+                description="Максимальная цена товара",
+                type=openapi.TYPE_NUMBER
+            ),
+            openapi.Parameter(
+                name="runflat",
+                in_=openapi.IN_QUERY,
+                description="Шины с технологией RunFlat",
+                type=openapi.TYPE_BOOLEAN
+            ),
+            openapi.Parameter(
+                name="promotion",
+                in_=openapi.IN_QUERY,
+                description="Товары с акцией",
+                type=openapi.TYPE_BOOLEAN
+            ),
+            openapi.Parameter(
+                name="min_load_index",
+                in_=openapi.IN_QUERY,
+                description="Минимальный индекс нагрузки",
+                type=openapi.TYPE_INTEGER
+            ),
+            openapi.Parameter(
+                name="max_load_index",
+                in_=openapi.IN_QUERY,
+                description="Максимальный индекс нагрузки",
+                type=openapi.TYPE_INTEGER
+            ),
+            openapi.Parameter(
+                name="min_noise_level",
+                in_=openapi.IN_QUERY,
+                description="Минимальный уровень шума",
+                type=openapi.TYPE_INTEGER
+            ),
+            openapi.Parameter(
+                name="max_noise_level",
+                in_=openapi.IN_QUERY,
+                description="Максимальный уровень шума",
+                type=openapi.TYPE_INTEGER
+            ),
+            openapi.Parameter(
+                name="width",
+                in_=openapi.IN_QUERY,
+                description="Ширина шины",
+                type=openapi.TYPE_STRING
+            ),
+            openapi.Parameter(
+                name="profile",
+                in_=openapi.IN_QUERY,
+                description="Профиль шины",
+                type=openapi.TYPE_STRING
+            ),
+            openapi.Parameter(
+                name="diameter",
+                in_=openapi.IN_QUERY,
+                description="Диаметр шины",
+                type=openapi.TYPE_STRING
+            ),
+            openapi.Parameter(
+                name="speed_index",
+                in_=openapi.IN_QUERY,
+                description="Скоростной индекс шины",
+                type=openapi.TYPE_STRING
             )
         ],
         responses={
@@ -934,8 +1007,6 @@ class ProductListView(generics.ListAPIView):
             500: "Внутренняя ошибка сервера"
         }
     )
-
-
     def get(self, request, *args, **kwargs):
         """
         Обрабатывает GET-запрос, включая пагинацию и фильтрацию.
