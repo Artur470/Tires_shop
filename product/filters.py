@@ -7,6 +7,7 @@ from django.db.models import Case, When, F, DecimalField
 # Словарь соответствия: ключ – value (англ.), значение – label (рус.)
 from django.db.models import Q
 from django_filters import BaseInFilter, BooleanFilter
+from django_filters import BaseInFilter, CharFilter, NumberFilter
 from django.db.models import Case, When, Value, F, DecimalField
 BODY_TYPE_CHOICES = {
     "sedan": "Седан",
@@ -105,28 +106,33 @@ class BooleanFlexibleFilter(django_filters.Filter):
             return qs.filter(**{f"{field}": False})
         return qs
 
+
+
+class CharInFilter(BaseInFilter, CharFilter):
+    pass
+
 class ProductFilterall(django_filters.FilterSet):
-    season = django_filters.CharFilter(method="filter_season")
-    manufacturer = django_filters.CharFilter(field_name='manufacturer', lookup_expr='exact')
-    tire_type = django_filters.CharFilter(field_name='tire_type__value', lookup_expr='exact')
+    season = CharInFilter(method="filter_season")  # теперь массив
+    manufacturer = CharInFilter(field_name='manufacturer', lookup_expr='in')
+    tire_type = CharInFilter(field_name='tire_type__value', lookup_expr='in')
 
-    min_price = django_filters.NumberFilter(method='filter_min_price')
-    max_price = django_filters.NumberFilter(method='filter_max_price')
-    min_load_index = django_filters.NumberFilter(field_name='load_index', lookup_expr='gte')
-    max_load_index = django_filters.NumberFilter(field_name='load_index', lookup_expr='lte')
-    min_noise_level = django_filters.NumberFilter(field_name='external_noise_level', lookup_expr='gte')
-    max_noise_level = django_filters.NumberFilter(field_name='external_noise_level', lookup_expr='lte')
+    min_price = NumberFilter(method='filter_min_price')
+    max_price = NumberFilter(method='filter_max_price')
+    min_load_index = NumberFilter(field_name='load_index', lookup_expr='gte')
+    max_load_index = NumberFilter(field_name='load_index', lookup_expr='lte')
+    min_noise_level = NumberFilter(field_name='external_noise_level', lookup_expr='gte')
+    max_noise_level = NumberFilter(field_name='external_noise_level', lookup_expr='lte')
 
-    width = django_filters.CharFilter(field_name='width', lookup_expr='exact')
-    profile = django_filters.CharFilter(field_name='profile', lookup_expr='exact')
-    diameter = django_filters.CharFilter(field_name='diameter', lookup_expr='exact')
-    speed_index = django_filters.CharFilter(field_name='speed_index', lookup_expr='exact')
+    width = CharInFilter(field_name='width', lookup_expr='in')
+    profile = CharInFilter(field_name='profile', lookup_expr='in')
+    diameter = CharInFilter(field_name='diameter', lookup_expr='in')
+    speed_index = CharInFilter(field_name='speed_index', lookup_expr='in')
 
     runflat = BooleanFlexibleFilter(field_name='runflat')
     off_road = BooleanFlexibleFilter(field_name='off_road')
     condition = BooleanFlexibleFilter(field_name='condition')
-    promotion = django_filters.CharFilter(method='filter_promotion')
-    sort_by_price = django_filters.CharFilter(method='filter_sort_by_price')
+    promotion = CharFilter(method='filter_promotion')
+    sort_by_price = CharFilter(method='filter_sort_by_price')
 
     class Meta:
         model = Product
@@ -159,6 +165,8 @@ class ProductFilterall(django_filters.FilterSet):
         return queryset
 
     def filter_season(self, queryset, name, value):
+        if isinstance(value, list):
+            return queryset.filter(season__value__in=value)
         if value == "all_season":
             return queryset.filter(season__value="all_season")
         return queryset.filter(season__value=value)
@@ -171,7 +179,6 @@ class ProductFilterall(django_filters.FilterSet):
                 output_field=DecimalField()
             )
         )
-
         if value == "cheap":
             return queryset.order_by("final_price")
         elif value == "expensive":
@@ -195,5 +202,3 @@ class ProductFilterall(django_filters.FilterSet):
                 output_field=DecimalField()
             )
         ).filter(final_price__lte=value)
-
-
