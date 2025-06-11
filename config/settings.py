@@ -107,10 +107,9 @@ CORS_ALLOW_CREDENTIALS = True
 database_url = os.environ.get("DATABASE_URL")
 DATABASES = {
     'default': dj_database_url.parse(
-        "postgresql://tirespostgresql_db_user:RBsd7V338SRINfLrakOZDSZFNrtBENtf@dpg-cvhs2gtsvqrc73chmu1g-a.oregon-postgres.render.com/tirespostgresql_db?sslmode=require&connect_timeout=10"
-    )
+    "postgresql://tiresshop_user:GAO4hSECbqnYX0cP5amAvNAG4E8Z54nx@dpg-d14o1imuk2gs73b3afng-a.oregon-postgres.render.com/tiresshop_db"
+)
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
