@@ -1670,6 +1670,7 @@ class ProductCreateView(generics.CreateAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductCreateSerializer
     permission_classes = [AllowAny]
+    parser_classes = [MultiPartParser, FormParser]  # 👈 ОБЯЗАТЕЛЬНО
 
     @swagger_auto_schema(
         operation_summary="Создание нового товара",
