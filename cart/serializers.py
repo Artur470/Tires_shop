@@ -37,15 +37,13 @@ class ProductSerializer(serializers.ModelSerializer):
         return self.context.get('count', 1)
 
 class CartItemSerializer(serializers.ModelSerializer):
-    product = serializers.SerializerMethodField()
-
     class Meta:
         model = CartItem
-        fields = ['product']
+        fields = []
 
-    def get_product(self, obj):
-        product = obj.product
-        count = obj.count
+    def to_representation(self, instance):
+        product = instance.product
+        count = instance.count
 
         unit_price = float(product.promotion) if product.promotion else float(product.price or 0)
         total_price = unit_price * count
@@ -66,6 +64,7 @@ class CartItemSerializer(serializers.ModelSerializer):
             "in_stock": product.in_stock,
             "count": count,
         }
+
 class CartSerializer(serializers.ModelSerializer):
     cart_Id = serializers.IntegerField(source='id', help_text="id карты")
     cart_items = serializers.SerializerMethodField()
