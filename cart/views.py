@@ -84,7 +84,7 @@ class CartView(APIView):
         cart, _ = Cart.objects.get_or_create(user=user, ordered=False)
 
         product = get_object_or_404(Product, id=data.get('product'))
-        count = int(data.get('count', 1))
+        count = int(data.get('quantity', data.get('count', 1)))  # 🔧 вот здесь фикс
 
         if not product.negotiable and product.price is None and not product.promotion:
             return Response(
@@ -95,15 +95,22 @@ class CartView(APIView):
         unit_price = float(product.promotion) if product.promotion else float(product.price or 0)
         total_price = unit_price * count
 
-        CartItem.objects.create(
+        cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
             user=user,
             product=product,
-            count=count,
-            price=total_price
+            defaults={
+                'count': count,
+                'price': total_price
+            }
         )
 
-        return Response({'success': 'Item added to your cart'})
+        if not created:
+            cart_item.count += count
+            cart_item.price += total_price
+            cart_item.save()
+
+        return Response({"detail": "Товар добавлен в корзину."})
     @swagger_auto_schema(
         operation_description="Обновить количество определенного товара в корзине.",
         request_body=openapi.Schema(
@@ -236,6 +243,7 @@ class OrderView(APIView):
             unit_price = product.promotion or product.price
             line_total = unit_price * count if unit_price and not product.negotiable else Decimal("0.0")
 
+
             if not product.negotiable and unit_price:
                 total_price += line_total
 
@@ -308,7 +316,7 @@ class OrderView(APIView):
 
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
-class   ApplicationsView(APIView):
+class ApplicationsView(APIView):
 
     @swagger_auto_schema(
         operation_description="Получение всех успешно оформленных заказов (applications=True). Используется в админке для отслеживания заказов.",

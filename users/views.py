@@ -360,10 +360,10 @@ class UserApplicationsDetail(APIView):
                 "count": item.count
             })
 
+
         return Response({
             "order_id": order.id,
             "created_at": order.created_at,
-
             "total_quantity": total_quantity,
             "sub_total": float(sub_total) if sub_total else "Договорная",
             "promotion_total": float(promotion_total),

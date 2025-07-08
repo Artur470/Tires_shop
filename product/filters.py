@@ -9,6 +9,8 @@ from django.db.models import Q
 from django_filters import BaseInFilter, BooleanFilter
 from django_filters import BaseInFilter, CharFilter, NumberFilter
 from django.db.models import Case, When, Value, F, DecimalField
+
+
 BODY_TYPE_CHOICES = {
     "sedan": "Седан",
     "hatchback": "Хэтчбек",
