@@ -107,7 +107,7 @@ CORS_ALLOW_CREDENTIALS = True
 database_url = os.environ.get("DATABASE_URL")
 DATABASES = {
     'default': dj_database_url.parse(
-    "postgresql://tiresshop_user:GAO4hSECbqnYX0cP5amAvNAG4E8Z54nx@dpg-d14o1imuk2gs73b3afng-a.oregon-postgres.render.com/tiresshop_db"
+    "postgresql://tiresshop_admin_user:SKYR9jlGWu7kleGnWnx8EBuKMcAFNQWu@dpg-d1qdf3juibrs73ejrdi0-a.oregon-postgres.render.com/tiresshop_db_h59q"
 )
 }
 
@@ -238,4 +238,7 @@ AUTHENTICATION_BACKENDS = (
 
 
 
+
+admin
+admin_tiresshop32
 
