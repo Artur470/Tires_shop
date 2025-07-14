@@ -239,6 +239,3 @@ AUTHENTICATION_BACKENDS = (
 
 
 
-admin
-admin_tiresshop32
-
