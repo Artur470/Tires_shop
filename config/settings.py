@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'dj_rest_auth',
+
     'product',
     'users',
     'cart',
@@ -107,7 +108,7 @@ CORS_ALLOW_CREDENTIALS = True
 database_url = os.environ.get("DATABASE_URL")
 DATABASES = {
     'default': dj_database_url.parse(
-    "postgresql://tiresshop_admin_user:SKYR9jlGWu7kleGnWnx8EBuKMcAFNQWu@dpg-d1qdf3juibrs73ejrdi0-a.oregon-postgres.render.com/tiresshop_db_h59q"
+    "postgresql://tireshopdb_user:9KrkqZ1ttFy8Wge59j0Smruatn8a1aRR@dpg-d36k9ovdiees73btk290-a.oregon-postgres.render.com/tireshopdb"
 )
 }
 
@@ -150,7 +151,7 @@ REST_FRAMEWORK = {
 }
 
 
-# Internationalization
+# Internationalization    tireshop324545
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
@@ -187,6 +188,7 @@ SWAGGER_SETTINGS = {
     'LOGIN_URL': None,
     'LOGOUT_URL': None,
 }
+SITE_ID = 1
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME'),
     'API_KEY': config('CLOUDINARY_API_KEY'),
